@@ -54,28 +54,57 @@
 </head>
 <body>
 	<header>
-		<nav class="tabs-nav">
-			<button class="tab-btn active" data-tab="local">本地</button>
-			<button class="tab-btn" data-tab="youtube">YouTube</button>
-		</nav>
+	<nav class="tabs-nav">
+		<button class="tab-btn active" data-tab="youtube">YouTube</button>
+		<button class="tab-btn" data-tab="local">本地</button>
+	</nav>
 		<div class="toolbar">
 		<script id="boot-data" type="application/json">{{ {'tree': tree, 'musicDir': music_dir}|tojson }}</script>
 		<input id="volSlider" type="range" min="0" max="100" value="50" class="header-volume-slider" />
 		</div>
 	</header>
-	<main id="tree" class="tab-content local-tab local-theme" aria-label="文件列表"></main>
-	<div id="youtubePlaylist" class="tab-content youtube-tab youtube-theme" style="display:none;" aria-label="YouTube播放列表">
-		<div class="youtube-tab-header">
-			<div class="youtube-input-group">
-				<textarea id="youtubeInput" class="youtube-input" placeholder="输入YouTube视频或播放列表地址" rows="2"></textarea>
-				<button id="youtubeSubmit" class="youtube-btn primary">播放</button>
+	<main id="tree" class="tab-content local-tab local-theme" style="display:none;" aria-label="文件列表"></main>
+	<div id="youtubePlaylist" class="tab-content youtube-tab youtube-theme" aria-label="YouTube播放列表">
+		
+		<div class="youtube-search-section" id="youtubeSearchSection">
+			<div class="youtube-search-group">
+				<input id="youtubeSearchInput" class="youtube-search-input" type="text" placeholder="搜索YouTube视频..." />
+				<button id="youtubeSearchBtn" class="youtube-btn primary">搜索</button>
 			</div>
-			<div id="youtubeStatus" class="youtube-status"></div>
+			<div id="youtubeSearchResults" class="youtube-search-results" style="display:none;">
+				<h4 class="youtube-search-title">搜索结果</h4>
+				<div id="youtubeSearchList" class="youtube-search-list"></div>
+			</div>
 		</div>
-		<div class="youtube-divider"></div>
-		<div class="youtube-queue-section" id="youtubeQueueSection" style="display:none;">
+		
+		<div class="youtube-queue-section" id="youtubeQueueSection">
 			<h4 class="youtube-queue-title">当前播放队列</h4>
 			<div id="youtubeQueueList" class="youtube-queue-list"></div>
+		</div>
+		<!-- YouTube输入模态框 -->
+		<div id="youtubeInputModal" class="youtube-input-modal" style="display:none;">
+			<div class="youtube-input-modal-content">
+				<div class="youtube-input-modal-header">
+					<h3>输入YouTube地址</h3>
+					<button class="youtube-input-modal-close" data-icon="✕">✕</button>
+				</div>
+				<div class="youtube-input-modal-body">
+					<textarea id="youtubeInputTextarea" class="youtube-input" placeholder="输入YouTube视频或播放列表地址" rows="4"></textarea>
+					<button id="youtubeInputSubmit" class="youtube-btn primary youtube-input-submit-btn">播放</button>
+				</div>
+			</div>
+		</div>
+		<!-- YouTube搜索结果模态框 -->
+		<div id="youtubeSearchModal" class="youtube-search-modal" style="display:none;">
+			<div class="youtube-search-modal-content">
+				<div class="youtube-search-modal-header">
+					<h3>搜索结果</h3>
+					<button class="youtube-search-modal-close" data-icon="✕">✕</button>
+				</div>
+				<div class="youtube-search-modal-body">
+					<div id="youtubeSearchModalList" class="youtube-search-modal-list"></div>
+				</div>
+			</div>
 		</div>
 	</div>
 	
@@ -83,17 +112,17 @@
 		<div id="playerProgress" aria-hidden="true"><div id="playerProgressFill"></div></div>
 		<div id="nowPlaying">未播放</div>
 		<div class="footer-controls-wrapper">
-			<div class="footer-controls-left">
-				<button id="shuffleBtn" class="control-btn" data-icon="🔀" title="随机" data-on="0">🔀</button>
-				<button id="historyBtn" class="control-btn" data-icon="📋" title="历史">📋</button>
-				<button id="prevBtn" class="control-btn" data-icon="⏮" title="上一首">⏮</button>
-			</div>
+		<div class="footer-controls-left">
+			<button id="youtubeInputBtn" class="control-btn" data-icon="📝" title="输入地址">📝</button>
+			<button id="historyBtn" class="control-btn" data-icon="📋" title="历史">📋</button>
+			<button id="prevBtn" class="control-btn" data-icon="⏮" title="上一首">⏮</button>
+		</div>
 			<button id="playPauseBtn" class="control-btn play-pause-large" data-icon="▶" title="播放/暂停">▶</button>
-			<div class="footer-controls-right">
-				<button id="nextBtn" class="control-btn" data-icon="⏭" title="下一首">⏭</button>
-				<button id="volumePopupBtn" class="control-btn" data-icon="🔊" title="音量">🔊</button>
-				<button id="toggleExpand" class="control-btn" data-icon="☰" title="展开/折叠">☰</button>
-			</div>
+		<div class="footer-controls-right">
+			<button id="nextBtn" class="control-btn" data-icon="⏭" title="下一首">⏭</button>
+			<button id="loopBtn" class="control-btn loop-btn" data-icon="↻" title="循环模式">↻</button>
+			<button id="volumePopupBtn" class="control-btn" data-icon="🔊" title="音量">🔊</button>
+		</div>
 		</div>
 		<!-- Volume popup slider - entire popup is the slider -->
 		<div id="volumePopup" class="volume-popup" style="display:none;">

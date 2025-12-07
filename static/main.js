@@ -137,10 +137,90 @@
 		});
 	};
 	if(prevBtn) prevBtn.onclick = ()=>{
-		fetch('/prev', {method:'POST'}).then(r=>r.json()).then(j=>{ if(j.status!=='OK'){ console.warn(j.error); } });
+		// 检查是否在 YouTube 页面并且有队列
+		const youtubeTab = document.getElementById('youtubePlaylist');
+		if(youtubeTab && youtubeTab.style.display !== 'none') {
+			// 在 YouTube 页面，控制队列
+			fetch('/youtube_queue')
+				.then(r => r.json())
+				.then(res => {
+					if(res && res.status === 'OK' && res.queue && res.queue.length > 0) {
+						const currentIndex = res.current_index || 0;
+						const prevIndex = currentIndex - 1;
+						if(prevIndex >= 0) {
+							fetch('/youtube_queue_play', {
+								method: 'POST',
+								headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+								body: `index=${prevIndex}`
+							})
+							.then(r => r.json())
+							.then(res => {
+								if(res && res.status === 'OK') {
+									console.debug('[UI] 播放上一首');
+									// 重新加载队列显示
+									if(window.loadYoutubeQueue) window.loadYoutubeQueue();
+								}
+							});
+						} else {
+							console.warn('已是第一首');
+						}
+					} else {
+						// 没有队列，使用本地文件的上一个
+						fetch('/prev', {method:'POST'}).then(r=>r.json()).then(j=>{ if(j.status!=='OK'){ console.warn(j.error); } });
+					}
+				})
+				.catch(e => {
+					console.error('获取队列失败:', e);
+					// 降级到本地文件的上一个
+					fetch('/prev', {method:'POST'}).then(r=>r.json()).then(j=>{ if(j.status!=='OK'){ console.warn(j.error); } });
+				});
+		} else {
+			// 本地文件页面，使用原有逻辑
+			fetch('/prev', {method:'POST'}).then(r=>r.json()).then(j=>{ if(j.status!=='OK'){ console.warn(j.error); } });
+		}
 	};
 	if(nextBtn) nextBtn.onclick = ()=>{
-		fetch('/next', {method:'POST'}).then(r=>r.json()).then(j=>{ if(j.status!=='OK'){ console.warn(j.error); } });
+		// 检查是否在 YouTube 页面并且有队列
+		const youtubeTab = document.getElementById('youtubePlaylist');
+		if(youtubeTab && youtubeTab.style.display !== 'none') {
+			// 在 YouTube 页面，控制队列
+			fetch('/youtube_queue')
+				.then(r => r.json())
+				.then(res => {
+					if(res && res.status === 'OK' && res.queue && res.queue.length > 0) {
+						const currentIndex = res.current_index || 0;
+						const nextIndex = currentIndex + 1;
+						if(nextIndex < res.queue.length) {
+							fetch('/youtube_queue_play', {
+								method: 'POST',
+								headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+								body: `index=${nextIndex}`
+							})
+							.then(r => r.json())
+							.then(res => {
+								if(res && res.status === 'OK') {
+									console.debug('[UI] 播放下一首');
+									// 重新加载队列显示
+									if(window.loadYoutubeQueue) window.loadYoutubeQueue();
+								}
+							});
+						} else {
+							console.warn('已是最后一首');
+						}
+					} else {
+						// 没有队列，使用本地文件的下一个
+						fetch('/next', {method:'POST'}).then(r=>r.json()).then(j=>{ if(j.status!=='OK'){ console.warn(j.error); } });
+					}
+				})
+				.catch(e => {
+					console.error('获取队列失败:', e);
+					// 降级到本地文件的下一个
+					fetch('/next', {method:'POST'}).then(r=>r.json()).then(j=>{ if(j.status!=='OK'){ console.warn(j.error); } });
+				});
+		} else {
+			// 本地文件页面，使用原有逻辑
+			fetch('/next', {method:'POST'}).then(r=>r.json()).then(j=>{ if(j.status!=='OK'){ console.warn(j.error); } });
+		}
 	};
 	if(shuffleBtn) shuffleBtn.onclick = ()=>{
 		fetch('/shuffle', {method:'POST'}).then(r=>r.json()).then(j=>{
@@ -149,6 +229,35 @@
 			}
 		});
 	};
+
+	// 循环模式按钮 (0=不循环, 1=单曲循环, 2=全部循环)
+	const loopBtn = document.getElementById('loopBtn');
+	if(loopBtn) {
+		loopBtn.onclick = ()=>{
+			fetch('/loop', {method:'POST'}).then(r=>r.json()).then(j=>{
+				if(j.status==='OK'){
+					const mode = j.loop_mode;
+					// 更新按钮显示和状态
+					loopBtn.dataset.loop_mode = mode;
+					if(mode === 0) {
+						loopBtn.textContent = '↻';
+						loopBtn.title = '不循环';
+						loopBtn.classList.remove('loop-single', 'loop-all');
+					} else if(mode === 1) {
+						loopBtn.textContent = '↻¹';
+						loopBtn.title = '单曲循环';
+						loopBtn.classList.add('loop-single');
+						loopBtn.classList.remove('loop-all');
+					} else if(mode === 2) {
+						loopBtn.textContent = '↻∞';
+						loopBtn.title = '全部循环';
+						loopBtn.classList.add('loop-all');
+						loopBtn.classList.remove('loop-single');
+					}
+				}
+			}).catch(e => console.error('循环模式请求失败:', e));
+		};
+	}
 
 	// 音量滑块事件
 	const vol = document.getElementById('volSlider');
@@ -230,8 +339,8 @@
 		});
 	});
 	
-	// 初始化标签导航主题
-	tabsNav.classList.add('local-tab-nav');
+	// 初始化标签导航主题为YouTube配色
+	tabsNav.classList.add('youtube-tab-nav');
 
 	// ========== 音量弹出控制 ==========
 	const volumePopupBtn = document.getElementById('volumePopupBtn');
@@ -408,32 +517,47 @@
 					historyList.innerHTML = '<div style="padding:16px; text-align:center; color:#888;">暂无播放历史</div>';
 					return;
 				}
-				historyList.innerHTML = history.map((item, idx) => {
-					const name = item.name || '未知标题';
-					const url = item.url || '';
-					return `<div class="history-item" data-url="${url.replace(/"/g, '&quot;')}">
-						<div class="history-item-info">
-							<div class="history-item-name">${name}</div>
-							<div class="history-item-url">${url}</div>
-						</div>
-						<button class="history-item-delete" data-index="${idx}" title="删除">✕</button>
-					</div>`;
-				}).join('');
-
-				// Add click handlers for playback
-				historyList.querySelectorAll('.history-item').forEach(item => {
-					item.addEventListener('click', (e) => {
-						if(!e.target.classList.contains('history-item-delete')) {
-							const url = item.dataset.url;
-							if(url) {
-								playHistoryItem(url);
-								historyModal.classList.remove('show');
-							}
+			historyList.innerHTML = history.map((item, idx) => {
+				// 提取显示名称：优先使用 name，其次使用 title，最后从 URL 提取
+				let displayName = item.name || item.title || '未知';
+				if(!displayName || displayName === '加载中…') {
+					// 如果是 URL，尝试提取更好的名称
+					try {
+						const url = item.url || '';
+						if(url.includes('youtube')) {
+							displayName = '播放列表或视频';
+						} else {
+							const urlObj = new URL(url);
+							displayName = urlObj.hostname || displayName;
 						}
-					});
-				});
+					} catch(e) {
+						displayName = '未知';
+					}
+				}
+				const url = item.url || '';
+				const itemType = item.type || 'unknown'; // 记录项目类型
+				return `<div class="history-item" data-url="${url.replace(/"/g, '&quot;')}" data-type="${itemType}">
+					<div class="history-item-info">
+						<div class="history-item-name">${displayName}</div>
+						<div class="history-item-url">${url.substring(0, 100)}${url.length > 100 ? '...' : ''}</div>
+					</div>
+					<button class="history-item-delete" data-index="${idx}" title="删除">✕</button>
+				</div>`;
+			}).join('');
 
-				// Add delete handlers
+			// Add click handlers for playback
+			historyList.querySelectorAll('.history-item').forEach(item => {
+				item.addEventListener('click', (e) => {
+					if(!e.target.classList.contains('history-item-delete')) {
+						const url = item.dataset.url;
+						const itemType = item.dataset.type;
+						if(url) {
+							playHistoryItem(url, itemType);
+							historyModal.classList.remove('show');
+						}
+					}
+				});
+			});				// Add delete handlers
 				historyList.querySelectorAll('.history-item-delete').forEach(btn => {
 					btn.addEventListener('click', (e) => {
 						e.stopPropagation();
@@ -449,21 +573,39 @@
 			});
 	}
 
-	function playHistoryItem(url) {
-		console.debug('[HISTORY] 播放历史项目:', url);
-		// Send request to play this URL
-		fetch('/play_youtube', {
-			method: 'POST',
-			headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-			body: 'url=' + encodeURIComponent(url)
-		})
-		.then(r => r.json())
-		.then(j => {
-			if(j.status !== 'OK') {
-				console.warn('播放失败:', j.error);
-				alert('播放失败: ' + j.error);
-			}
-		})
-		.catch(e => console.error('播放请求错误:', e));
+	function playHistoryItem(url, itemType) {
+		console.debug('[HISTORY] 播放历史项目:', url, '类型:', itemType);
+		
+		if(itemType === 'local') {
+			// 本地文件，使用 /play API
+			fetch('/play', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+				body: 'path=' + encodeURIComponent(url)
+			})
+			.then(r => r.json())
+			.then(j => {
+				if(j.status !== 'OK') {
+					console.warn('播放失败:', j.error);
+					alert('播放失败: ' + j.error);
+				}
+			})
+			.catch(e => console.error('播放请求错误:', e));
+		} else {
+			// YouTube URL，使用 /play_youtube API
+			fetch('/play_youtube', {
+				method: 'POST',
+				headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+				body: 'url=' + encodeURIComponent(url)
+			})
+			.then(r => r.json())
+			.then(j => {
+				if(j.status !== 'OK') {
+					console.warn('播放失败:', j.error);
+					alert('播放失败: ' + j.error);
+				}
+			})
+			.catch(e => console.error('播放请求错误:', e));
+		}
 	}
 })();

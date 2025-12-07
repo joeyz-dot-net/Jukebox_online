@@ -194,16 +194,39 @@ _STOP_FLAG = False
 _REQ_ID = 0
 CURRENT_META = {}  # 仅内存保存当前播放信息，不写入 settings.json
 SHUFFLE = False
+# 循环模式: 0=不循环, 1=单曲循环, 2=全部循环
+LOOP_MODE = 0
 _LAST_PLAY_TIME = 0  # 记录最后一次启动播放的时间戳，用于跳过过早的结束检测
 # 保存被网络流打断前的播放状态，以便网络流结束后恢复本地播放列表
 PREV_INDEX = None
 PREV_META = None
-# YouTube 播放历史记录
-YOUTUBE_HISTORY = []  # 存储已播放的 YouTube URL 和元数据，最多保留 100 条记录
-YOUTUBE_HISTORY_MAX = 100
+# 统一播放历史记录（本地文件和YouTube流媒体）
+PLAYBACK_HISTORY = []  # 存储所有已播放内容（本地文件和YouTube），最多保留 50 条记录（仅内存保存）
+PLAYBACK_HISTORY_MAX = 50
 # YouTube 播放列表队列（当前正在播放的列表）
 YOUTUBE_QUEUE = []  # 存储当前播放列表中的所有视频队列
 CURRENT_QUEUE_INDEX = -1  # 当前播放列表中的索引
+
+# =========== 播放历史管理 ===========
+def add_to_playback_history(url_or_path: str, name: str, is_local: bool = False):
+	"""添加播放历史（支持本地文件和YouTube）
+	
+	参数:
+	  url_or_path: 文件路径或URL
+	  name: 显示名称
+	  is_local: 是否为本地文件
+	"""
+	global PLAYBACK_HISTORY
+	history_item = {
+		'url': url_or_path,
+		'name': name,
+		'type': 'local' if is_local else 'youtube',
+		'ts': int(time.time())
+	}
+	PLAYBACK_HISTORY.insert(0, history_item)
+	if len(PLAYBACK_HISTORY) > PLAYBACK_HISTORY_MAX:
+		PLAYBACK_HISTORY = PLAYBACK_HISTORY[:PLAYBACK_HISTORY_MAX]
+	print(f"[DEBUG] 已添加播放历史: {name} ({history_item['type']})")
 
 # =========== 文件树 / 安全路径 ===========
 def safe_path(rel: str):
@@ -392,6 +415,8 @@ def _play_index(idx: int):
 	CURRENT_INDEX = idx
 	CURRENT_META = {'abs_path': abs_file, 'rel': rel, 'index': idx, 'ts': int(time.time()), 'name': os.path.basename(rel)}
 	_LAST_PLAY_TIME = time.time()  # 记录播放开始时间
+	# 添加到播放历史
+	add_to_playback_history(abs_file, os.path.basename(rel), is_local=True)
 	print(f"[DEBUG] CURRENT_INDEX set to {CURRENT_INDEX}")
 	return True
 
@@ -420,7 +445,7 @@ def _play_url(url: str, save_to_history: bool = True, update_queue: bool = True)
 		mpv_command(['loadfile', url, 'replace'])
 		print(f"[DEBUG] 已向 mpv 发送播放命令")
 		# 保存当前本地播放状态，以便网络流结束后恢复
-		global CURRENT_META, PREV_INDEX, PREV_META, CURRENT_INDEX, YOUTUBE_HISTORY, YOUTUBE_QUEUE, CURRENT_QUEUE_INDEX
+		global CURRENT_META, PREV_INDEX, PREV_META, CURRENT_INDEX, YOUTUBE_QUEUE, CURRENT_QUEUE_INDEX
 		PREV_INDEX = CURRENT_INDEX
 		PREV_META = dict(CURRENT_META) if CURRENT_META else None
 		# 初始化 CURRENT_META：保留 raw_url，并使用占位名（避免将原始 URL 直接显示给用户）
@@ -464,15 +489,12 @@ def _play_url(url: str, save_to_history: bool = True, update_queue: bool = True)
 				is_playlist = False
 				playlist_entries = []
 		
-		# 添加到 YouTube 历史记录
+		# 添加到播放历史
 		if is_playlist:
 			# 如果是播放列表，仅在save_to_history为True时添加原始URL（播放列表URL）
 			if save_to_history:
-				history_item = {'url': url, 'ts': int(time.time()), 'name': f'播放列表 ({len(playlist_entries)} 首)', 'from_playlist': False}
-				YOUTUBE_HISTORY.insert(0, history_item)
-				if len(YOUTUBE_HISTORY) > YOUTUBE_HISTORY_MAX:
-					YOUTUBE_HISTORY = YOUTUBE_HISTORY[:YOUTUBE_HISTORY_MAX]
-				print(f"[DEBUG] 已添加播放列表到历史记录")
+				playlist_name = f'播放列表 ({len(playlist_entries)} 首)'
+				add_to_playback_history(url, playlist_name, is_local=False)
 			else:
 				print(f"[DEBUG] 跳过添加播放列表到历史记录 (save_to_history=False)")
 			# 设置当前播放队列（仅当update_queue为True时）
@@ -485,11 +507,7 @@ def _play_url(url: str, save_to_history: bool = True, update_queue: bool = True)
 		else:
 			# 单个视频的添加逻辑
 			if save_to_history:
-				history_item = {'url': url, 'ts': int(time.time()), 'name': '加载中…'}
-				YOUTUBE_HISTORY.insert(0, history_item)  # 新项插入到列表开头
-				if len(YOUTUBE_HISTORY) > YOUTUBE_HISTORY_MAX:
-					YOUTUBE_HISTORY = YOUTUBE_HISTORY[:YOUTUBE_HISTORY_MAX]  # 保留最多 100 条
-				print(f"[DEBUG] 已添加单个视频到历史记录")
+				add_to_playback_history(url, '加载中…', is_local=False)
 			else:
 				print(f"[DEBUG] 跳过添加单个视频到历史记录 (save_to_history=False)")
 			# 单个视频的队列（仅当update_queue为True时）
@@ -529,8 +547,8 @@ def _play_url(url: str, save_to_history: bool = True, update_queue: bool = True)
 					CURRENT_META['media_title'] = media_title
 					CURRENT_META['name'] = media_title
 					# 更新历史记录中最新项的标题（仅当save_to_history为True时）
-				if save_to_history and YOUTUBE_HISTORY and YOUTUBE_HISTORY[0]['url'] == url:
-					YOUTUBE_HISTORY[0]['name'] = media_title
+				if save_to_history and PLAYBACK_HISTORY and PLAYBACK_HISTORY[0]['url'] == url:
+					PLAYBACK_HISTORY[0]['name'] = media_title
 					print(f"[DEBUG] mpv media-title 探测到 (尝试 {attempt+1}): {media_title}")
 					break
 				else:
@@ -669,7 +687,7 @@ def _auto_loop():
 							try:
 								next_url = YOUTUBE_QUEUE[next_index]['url']
 								CURRENT_QUEUE_INDEX = next_index
-								_play_url(next_url, save_to_history=False, update_queue=False)
+								_play_url(next_url, save_to_history=True, update_queue=False)
 								print(f'[INFO] 已自动播放队列中的下一首: {next_index}')
 								time.sleep(1)
 								continue
@@ -706,10 +724,28 @@ def _auto_loop():
 						time.sleep(5)
 						continue
 				print('[INFO] 当前曲目已结束，尝试播放下一首...')
-				if not _next_track():
-					# 到末尾，等待再尝试
-					print('[DEBUG] 已到播放列表末尾，稍后重试')
-					time.sleep(10)
+				# 根据循环模式处理
+				if LOOP_MODE == 1:  # 单曲循环
+					print(f'[INFO] 单曲循环模式，重新播放当前曲目')
+					if CURRENT_INDEX >= 0 and CURRENT_INDEX < len(PLAYLIST):
+						_play_index(CURRENT_INDEX)
+						time.sleep(1)
+						continue
+				elif LOOP_MODE == 2:  # 全部循环
+					if not _next_track():
+						# 已到末尾，循环回到开头
+						print('[INFO] 全部循环模式，循环回到列表开头')
+						if PLAYLIST:
+							_play_index(0)
+							time.sleep(1)
+							continue
+				else:  # LOOP_MODE == 0, 不循环
+					if not _next_track():
+						# 到末尾，等待再尝试
+						print('[DEBUG] 已到播放列表末尾，稍后重试')
+						time.sleep(10)
+						continue
+					time.sleep(1)
 					continue
 		except Exception as e:
 			print(f'[ERROR] 自动播放循环异常: {e}')
@@ -846,6 +882,13 @@ def api_shuffle():
 	SHUFFLE = not SHUFFLE
 	return jsonify({'status':'OK','shuffle': SHUFFLE})
 
+@APP.route('/loop', methods=['POST'])
+def api_loop():
+	"""循环模式切换: 0=不循环, 1=单曲循环, 2=全部循环"""
+	global LOOP_MODE
+	LOOP_MODE = (LOOP_MODE + 1) % 3
+	return jsonify({'status':'OK','loop_mode': LOOP_MODE})
+
 @APP.route('/playlist')
 def api_playlist():
 	"""返回当前播放列表。
@@ -976,7 +1019,7 @@ def api_play_youtube():
 			return jsonify({'status':'ERROR','error':'mpv 启动失败或未就绪'}), 500
 		# 使用 _play_url 播放，它会设置 ytdl-format=bestaudio 并加载 URL
 		print(f"[YOUTUBE] 开始播放 YouTube 链接: {url}")
-		_play_url(url)
+		_play_url(url, save_to_history=True, update_queue=True)
 		return jsonify({'status':'OK','msg':'已开始流式播放 (mpv ytdl-format=bestaudio)', 'url': url})
 	except Exception as e:
 		print(f"[ERROR] 播放 YouTube 异常: {e}")
@@ -1021,9 +1064,9 @@ def api_youtube_queue_play():
 	try:
 		# 更新当前索引
 		CURRENT_QUEUE_INDEX = index
-		# 播放该索引对应的URL，但不保存到历史记录，也不更新队列
+		# 播放该索引对应的URL，保存到历史记录，但不更新队列
 		url = YOUTUBE_QUEUE[index]['url']
-		_play_url(url, save_to_history=False, update_queue=False)
+		_play_url(url, save_to_history=True, update_queue=False)
 		return jsonify({
 			'status': 'OK',
 			'current_index': CURRENT_QUEUE_INDEX,
@@ -1031,6 +1074,42 @@ def api_youtube_queue_play():
 		})
 	except Exception as e:
 		print(f"[ERROR] 播放队列中的歌曲失败: {e}")
+		return jsonify({'status': 'ERROR', 'error': str(e)}), 500
+
+@APP.route('/youtube_queue_add', methods=['POST'])
+def api_youtube_queue_add():
+	"""添加视频到播放队列。
+	
+	参数:
+	  url    要添加的视频URL（必需）
+	  title  视频标题（可选）
+	"""
+	from flask import request
+	global YOUTUBE_QUEUE
+	
+	url = (request.form.get('url') or '').strip()
+	title = (request.form.get('title') or '').strip()
+	
+	if not url:
+		return jsonify({'status': 'ERROR', 'error': '缺少 url 参数'}), 400
+	
+	try:
+		# 添加到队列
+		queue_item = {
+			'url': url,
+			'title': title or '加载中…',
+			'ts': int(time.time())
+		}
+		YOUTUBE_QUEUE.append(queue_item)
+		print(f"[DEBUG] 已添加视频到队列: {title or url}")
+		
+		return jsonify({
+			'status': 'OK',
+			'queue_length': len(YOUTUBE_QUEUE),
+			'msg': f'已添加到队列'
+		})
+	except Exception as e:
+		print(f"[ERROR] 添加视频到队列失败: {e}")
 		return jsonify({'status': 'ERROR', 'error': str(e)}), 500
 
 @APP.route('/youtube_history')
@@ -1041,8 +1120,49 @@ def api_youtube_history():
 	  limit  返回最多多少条记录（默认 20，最大 100）
 	"""
 	from flask import request
-	limit = min(int(request.args.get('limit', 20)), 100)
-	return jsonify({'status':'OK','history': YOUTUBE_HISTORY[:limit]})
+	limit = min(int(request.args.get('limit', 50)), 100)
+	return jsonify({'status':'OK','history': PLAYBACK_HISTORY[:limit]})
+
+@APP.route('/youtube_search', methods=['POST'])
+def api_youtube_search():
+	"""搜索 YouTube 视频。
+	
+	参数:
+	  query  搜索关键字
+	"""
+	from flask import request
+	query = request.form.get('query', '').strip()
+	if not query:
+		return jsonify({'status':'ERROR', 'error': '搜索关键字不能为空'})
+	
+	try:
+		import yt_dlp
+		# 使用 yt-dlp 搜索 YouTube
+		ydl_opts = {
+			'quiet': True,
+			'no_warnings': True,
+			'default_search': 'ytsearch',
+			'extract_flat': 'in_playlist',
+		}
+		with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+			# 搜索前10个结果
+			result = ydl.extract_info(f'ytsearch10:{query}', download=False)
+			results = []
+			if result and 'entries' in result:
+				for item in result['entries'][:10]:
+					if item:
+						results.append({
+							'url': f"https://www.youtube.com/watch?v={item['id']}",
+							'title': item.get('title', 'Unknown'),
+							'duration': item.get('duration', 0),
+							'uploader': item.get('uploader', 'Unknown'),
+							'id': item.get('id', '')
+						})
+			return jsonify({'status':'OK', 'results': results})
+	except Exception as e:
+		print(f'[ERROR] YouTube 搜索失败: {str(e)}')
+		return jsonify({'status':'ERROR', 'error': f'搜索失败: {str(e)}'})
 
 if __name__ == '__main__':
 	APP.run(host=cfg.get('FLASK_HOST','0.0.0.0'), port=cfg.get('FLASK_PORT',8000), debug=cfg.get('DEBUG',False))
+
