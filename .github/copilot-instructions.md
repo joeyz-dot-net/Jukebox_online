@@ -11,7 +11,7 @@
 - **Config**: settings.ini read once on startup in main.py via configparser; fallback to MusicPlayer.DEFAULT_CONFIG. Key fields: `[app]` music_dir (Z:), allowed_extensions (.mp3,.wav,.flac), mpv_cmd, server_host/server_port, debug.
 - **State loading**: On import, [app.py](app.py) lines ~55-70 initialize singletons which auto-load playback_history.json, playlist.json, playlists.json and build local file tree from music_dir via MusicPlayer.initialize(data_dir="."). All mutations auto-save to JSON.
 - **MPV diagnostics**: GET /debug/mpv for pipe/process status; PowerShell `Test-Path "\\.\pipe\mpv-pipe"` and `Get-Process mpv` for IPC troubleshooting. Check PLAYER.pipe_name vs settings.ini [app].mpv_cmd match. Default MPV path: c:\mpv\mpv.exe.
-- **Build**: `build_exe.bat` uses PyInstaller with app.spec; includes mpv.exe, yt-dlp.exe, templates/, static/ in bundle. Entry via [main.py](main.py) (not app.py directly for PyInstaller compat—uvicorn.run(app, ...) avoids reload issues).
+- **Build**: `build_exe.bat` uses PyInstaller with app.spec; includes mpv.exe, templates/, static/ in bundle. yt-dlp.exe is not included—download separately from https://github.com/yt-dlp/yt-dlp if YouTube support is needed. Entry via [main.py](main.py) (not app.py directly for PyInstaller compat—uvicorn.run(app, ...) avoids reload issues).
 
 ## Data contracts & conventions
 - **Song dicts** must include url, title, type (local/youtube), duration, thumbnail_url; song objects (LocalSong/StreamSong in [models/song.py](models/song.py)) expose to_dict(), is_local(), is_stream(). StreamSong auto-derives thumbnail via YouTube's img.youtube.com.
@@ -44,7 +44,7 @@
 
 ## Testing & validation
 - Manual checks: /debug/mpv for pipe status, /ranking?period=all for ranking data, browser console for _playlistUrlSet (dedup state).
-- YouTube tests require yt-dlp.exe available; check test/test_youtube_play.py, test/test_youtube_simple.py for patterns.
+- YouTube tests require yt-dlp.exe available; check test/test_youtube_play.py, test/test_youtube_simple.py for patterns. Download yt-dlp from https://github.com/yt-dlp/yt-dlp/releases.
 - Bilingual: responses mix Chinese (UI) and English (code); ensure str() doesn't break UTF-8 formatting.
 
 ## Common pitfalls
@@ -63,7 +63,7 @@
 
 ## Dependencies & external tools
 - **Python**: fastapi, uvicorn[standard], python-multipart, yt-dlp, Pillow, psutil, requests, pyinstaller (see [requirements.txt](requirements.txt))
-- **External executables**: mpv.exe (audio/video), yt-dlp.exe (YouTube extraction during build). Both bundled in PyInstaller; dev requires them in PATH or project root.
+- **External executables**: mpv.exe (audio/video, required), yt-dlp.exe (YouTube extraction, optional). mpv.exe bundled in PyInstaller; yt-dlp.exe must be downloaded separately from https://github.com/yt-dlp/yt-dlp if YouTube support is needed.
 - **Windows-specific**: UTF-8 stdout forced in [main.py](main.py) line ~10 and [models/player.py](models/player.py) line ~4; named pipe IPC via `\\.\pipe\mpv-pipe`.
 
 ## More references

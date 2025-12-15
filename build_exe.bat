@@ -65,13 +65,9 @@ if exist mpv.exe (
     echo [警告] 未找到 mpv.exe，请手动放入 dist\MusicPlayer\ 目录
 )
 
-REM 复制 yt-dlp.exe（如果存在）
-if exist yt-dlp.exe (
-    copy yt-dlp.exe dist\MusicPlayer\
-    echo 已复制 yt-dlp.exe
-) else (
-    echo [警告] 未找到 yt-dlp.exe，请手动放入 dist\MusicPlayer\ 目录
-)
+REM 注意: yt-dlp.exe 不再包含在仓库中
+REM 需要时请从 https://github.com/yt-dlp/yt-dlp 下载
+REM 将 yt-dlp.exe 放入 dist\MusicPlayer\ 目录后应用才能支持 YouTube 播放
 
 echo 完成
 
@@ -84,9 +80,11 @@ echo 可执行文件位置: dist\MusicPlayer\MusicPlayer.exe
 echo.
 echo 使用说明:
 echo 1. 将整个 dist\MusicPlayer 文件夹复制到目标位置
-echo 2. 确保 mpv.exe 和 yt-dlp.exe 在同一目录下
-echo 3. 编辑 settings.ini 配置音乐目录
-echo 4. 双击 MusicPlayer.exe 启动
+echo 2. 确保 mpv.exe 在同一目录下
+echo 3. （可选）若需支持 YouTube 播放，下载 yt-dlp.exe 放入此目录
+echo    下载地址: https://github.com/yt-dlp/yt-dlp/releases
+echo 4. 编辑 settings.ini 配置音乐目录
+echo 5. 双击 MusicPlayer.exe 启动
 echo.
 echo 提示: 首次运行可能被防火墙拦截，请允许访问
 echo ========================================
