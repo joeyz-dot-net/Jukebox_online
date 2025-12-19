@@ -43,9 +43,11 @@ export class RankingManager {
         const tabs = document.querySelectorAll('.ranking-tab');
         const tabMappings = {
             'all': 'ranking.all',
-            'today': 'ranking.today',
+            'day': 'ranking.day',
             'week': 'ranking.week',
-            'month': 'ranking.month'
+            'month': 'ranking.month',
+            'quarter': 'ranking.quarter',
+            'year': 'ranking.year'
         };
 
         tabs.forEach(tab => {

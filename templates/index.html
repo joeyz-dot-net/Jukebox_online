@@ -6,28 +6,28 @@
 	<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,user-scalable=yes,viewport-fit=cover" />
 	
 	<!-- Primary Metadata -->
-	<title>YouTube音乐点播 上麦可选高音质</title>
-	<meta name="description" content="音乐点播系统，支持串流" />
+	<title>音乐点播 支持YouTube串流</title>
+	<meta name="description" content="音乐点播系统，支持YouTube串流" />
 	<meta name="keywords" content="音乐,点播,串流,mp3,flac,wav" />
 	
 	<!-- Open Graph -->
 	<meta property="og:type" content="website" />
-	<meta property="og:title" content="YouTube音乐点播 上麦可选高音质" />
-	<meta property="og:site_name" content="YouTube音乐点播 上麦可选高音质" />
+	<meta property="og:title" content="音乐点播 支持YouTube串流 YouTube Streaming" />
+	<meta property="og:site_name" content="音乐点播 支持YouTube串流 YouTube Streaming" />
 	<meta property="og:url" content="{{ request.url }}" />
 	<meta property="og:description" content="音乐点播系统，支持YouTube串流" />
 	<meta property="og:image" content="/static/images/preview.png" />
 	<meta property="og:image:secure_url" content="/static/images/preview.png" />
 	<meta property="og:image:width" content="1200" />
 	<meta property="og:image:height" content="630" />
-	<meta property="og:image:alt" content="YouTube音乐点播 上麦可选高音质预览图" />
+	<meta property="og:image:alt" content="音乐点播 支持YouTube串流 YouTube Streaming预览图" />
 	<link rel="image_src" href="/static/images/preview.png" />
 	<!-- Favicon -->
 	<link rel="icon" type="image/x-icon" href="/static/images/favicon.ico" />
 	<link rel="shortcut icon" href="/static/images/favicon.ico" />
 	<!-- Twitter / Summary card -->
 	<meta name="twitter:card" content="summary_large_image" />
-	<meta name="twitter:title" content="YouTube音乐点播 上麦可选高音质" />
+	<meta name="twitter:title" content="音乐点播 支持YouTube串流 YouTube Streaming" />
 	<meta name="twitter:description" content="音乐点播系统，支持YouTube串流" />
 	<meta name="twitter:image" content="/static/images/preview.png" />
 	<meta property="og:image:width" content="1200" />
@@ -223,10 +223,10 @@
 			<span class="nav-icon">⚙️</span>
 			<span class="nav-label">设置</span>
 		</button>
-		<button class="nav-item" id="debugBtn" title="调试面板">
+		<!-- <button class="nav-item" id="debugBtn" title="调试面板">
 			<span class="nav-icon">🐛</span>
 			<span class="nav-label">调试</span>
-		</button>
+		</button> -->
 	</nav>
 	
 	<footer id="playerBar" class="footer-collapsed" style="display:none;">
@@ -447,9 +447,11 @@
 			</div>
 			<div class="ranking-tabs">
 				<button class="ranking-tab active" data-period="all">全部</button>
-				<button class="ranking-tab" data-period="today">本日</button>
+				<button class="ranking-tab" data-period="day">本日</button>
 				<button class="ranking-tab" data-period="week">本周</button>
 				<button class="ranking-tab" data-period="month">本月</button>
+				<button class="ranking-tab" data-period="quarter">季度</button>
+				<button class="ranking-tab" data-period="year">年度</button>
 			</div>
 			<div class="ranking-modal-body" id="rankingModalBody">
 				<!-- 排行榜列表将在这里动态生成 -->

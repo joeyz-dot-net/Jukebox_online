@@ -49,6 +49,11 @@ export class Player {
         }
         
         try {
+            // === 关键：删除旧的 stream_client_id cookie，强制后端生成新ID ===
+            // 这样可以避免重复使用已断开的客户端ID
+            document.cookie = 'stream_client_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;';
+            console.log('[推流] 已清除旧的客户端ID cookie，将强制生成新ID');
+            
             const timestamp = Date.now();
             const url = `/stream/play?format=${streamFormat}&t=${timestamp}`;
             

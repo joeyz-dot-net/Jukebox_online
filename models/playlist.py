@@ -317,7 +317,7 @@ class PlayHistory(Playlist):
         self._file_path = file_path
 
     def add_to_history(self, url_or_path: str, name: str, is_local: bool = False, thumbnail_url: str = None):
-        """添加项目到历史记录
+        """添加项目到历史记录，聚合相同URL的播放并记录每次播放时间
 
         参数:
           url_or_path: URL 或本地文件路径
@@ -336,19 +336,30 @@ class PlayHistory(Playlist):
                 existing_index = idx
                 break
 
+        current_timestamp = int(time.time())
+
         if existing_song:
             # 如果已存在，增加play_count并更新时间戳
             if not hasattr(existing_song, 'play_count'):
                 existing_song.play_count = 0
             existing_song.play_count += 1
-            existing_song.timestamp = int(time.time())
+            existing_song.timestamp = current_timestamp
+            existing_song.ts = current_timestamp
             existing_song.title = name  # 更新名称
             if thumbnail_url and hasattr(existing_song, 'thumbnail_url'):
                 existing_song.thumbnail_url = thumbnail_url
+            
+            # 维护 timestamps 字段（逗号分割的时间戳列表）
+            if not hasattr(existing_song, 'timestamps'):
+                existing_song.timestamps = str(current_timestamp)
+            else:
+                # 添加新的时间戳
+                existing_song.timestamps = f"{existing_song.timestamps},{current_timestamp}"
+            
             # 将该项移动到列表头部
             self._items.pop(existing_index)
             self._items.insert(0, existing_song)
-            print(f"[DEBUG] 已更新播放历史: {name} ({existing_song.type})，播放次数: {existing_song.play_count}")
+            print(f"[DEBUG] 已更新播放历史: {name} ({existing_song.type})，播放次数: {existing_song.play_count}，时间戳: {current_timestamp}")
         else:
             # 如果不存在，创建新Song对象
             if is_local:
@@ -360,13 +371,15 @@ class PlayHistory(Playlist):
             
             # 添加播放历史特有属性
             song.play_count = 1
-            song.timestamp = int(time.time())
+            song.timestamp = current_timestamp
+            song.ts = current_timestamp
+            song.timestamps = str(current_timestamp)  # 第一次播放的时间戳
             
             self._items.insert(0, song)
             # 保持列表大小限制
             if self._max_size and len(self._items) > self._max_size:
                 self._items = self._items[: self._max_size]
-            print(f"[DEBUG] 已添加播放历史: {name} ({song.type})")
+            print(f"[DEBUG] 已添加播放历史: {name} ({song.type})，时间戳: {current_timestamp}")
 
         # 保存到文件
         if self._file_path:
@@ -377,7 +390,7 @@ class PlayHistory(Playlist):
         self._file_path = file_path
 
     def save(self):
-        """保存历史记录到文件"""
+        """保存历史记录到文件（包含aggregated play_count和timestamps）"""
         if not self._file_path:
             return
         try:
@@ -388,6 +401,8 @@ class PlayHistory(Playlist):
                 # 保存播放历史特有属性
                 song_dict['play_count'] = getattr(song, 'play_count', 1)
                 song_dict['ts'] = getattr(song, 'timestamp', 0)
+                # 保存每次播放的时间戳列表
+                song_dict['timestamps'] = getattr(song, 'timestamps', str(getattr(song, 'timestamp', 0)))
                 data.append(song_dict)
             
             with open(self._file_path, "w", encoding="utf-8") as f:
@@ -413,6 +428,9 @@ class PlayHistory(Playlist):
                             # 恢复播放历史特有属性
                             song.play_count = item.get('play_count', 1)
                             song.timestamp = item.get('ts', 0)
+                            song.ts = song.timestamp
+                            # 恢复每次播放的时间戳列表
+                            song.timestamps = item.get('timestamps', str(song.timestamp))
                             self._items.append(song)
                     print(f"[INFO] 已加载 {len(self._items)} 条播放历史")
                 else:
@@ -442,8 +460,29 @@ class PlayHistory(Playlist):
             item = song.to_dict() if hasattr(song, 'to_dict') else {}
             item['play_count'] = getattr(song, 'play_count', 1)
             item['ts'] = getattr(song, 'timestamp', 0)
+            # 包含每次播放的时间戳列表
+            item['timestamps'] = getattr(song, 'timestamps', str(getattr(song, 'timestamp', 0)))
             result.append(item)
         return result
+    
+    def get_play_timestamps(self, url: str) -> list:
+        """获取特定URL的所有播放时间戳列表
+        
+        参数:
+          url: 歌曲URL
+        
+        返回:
+          时间戳列表 (整数列表)
+        """
+        for song in self._items:
+            if isinstance(song, Song) and song.url == url:
+                timestamps_str = getattr(song, 'timestamps', '')
+                if timestamps_str:
+                    try:
+                        return [int(ts) for ts in timestamps_str.split(',')]
+                    except:
+                        return []
+        return []
 
     def clear(self):
         """清空所有播放历史"""

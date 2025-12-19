@@ -1150,10 +1150,10 @@ async def get_ranking(period: str = "all"):
     """获取播放排行榜
     
     参数:
-      period: 时间段 - "all" (全部), "week" (本周), "month" (本月)
+      period: 时间段 - "all" (全部), "day" (本日), "week" (本周), "month" (本月), "quarter" (近三个月), "year" (近一年)
     
     返回:
-      按播放次数排序的歌曲列表
+      按播放次数排序的歌曲列表（基于时间段过滤播放记录）
     """
     try:
         import time
@@ -1170,34 +1170,62 @@ async def get_ranking(period: str = "all"):
         
         # 计算时间范围
         now = time.time()
-        if period == "week":
+        
+        if period == "day":
+            # 今天 (00:00:00 至今)
+            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            cutoff_time = today_start.timestamp()
+        elif period == "week":
             # 最近7天
-            cutoff_time = now - (7 * 24 * 60 * 60)
+            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            week_start = today_start - timedelta(days=7)
+            cutoff_time = week_start.timestamp()
         elif period == "month":
             # 最近30天
             cutoff_time = now - (30 * 24 * 60 * 60)
+        elif period == "quarter":
+            # 最近90天 (季度)
+            cutoff_time = now - (90 * 24 * 60 * 60)
+        elif period == "year":
+            # 最近365天
+            cutoff_time = now - (365 * 24 * 60 * 60)
         else:  # "all"
             cutoff_time = 0
         
-        # 按时间段过滤并按播放次数排序
-        filtered = []
+        # 基于timestamps字段统计各时间段的播放次数
+        ranking_dict = {}
         for item in history:
-            # 获取时间戳，优先使用 'ts' 字段，其次使用 'timestamp' 字段
-            timestamp = item.get('ts') or item.get('timestamp', 0)
+            url = item.get('url', '')
+            timestamps_str = item.get('timestamps', '')
             
-            if timestamp >= cutoff_time:
-                filtered.append({
-                    'url': item.get('url', ''),
+            if not url or not timestamps_str:
+                continue
+            
+            # 解析timestamps字符串中符合时间范围的播放时间
+            try:
+                all_timestamps = [int(ts) for ts in timestamps_str.split(',')]
+            except:
+                continue
+            
+            # 统计符合时间范围的播放次数
+            period_play_count = sum(1 for ts in all_timestamps if ts >= cutoff_time)
+            
+            # 只有在时间范围内有播放的才加入排行榜
+            if period_play_count > 0:
+                last_played = max([ts for ts in all_timestamps if ts >= cutoff_time])
+                
+                ranking_dict[url] = {
+                    'url': url,
                     'title': item.get('title', item.get('name', 'Unknown')),
                     'type': item.get('type', 'unknown'),
                     'thumbnail_url': item.get('thumbnail_url'),
-                    'play_count': item.get('play_count', 0),
-                    'last_played': timestamp  # 返回时间戳供前端格式化
-                })
+                    'play_count': period_play_count,
+                    'last_played': last_played
+                }
         
         # 按播放次数排序（降序），次数相同则按最后播放时间排序
         ranking = sorted(
-            filtered,
+            ranking_dict.values(),
             key=lambda x: (-x['play_count'], -x['last_played'])
         )
         

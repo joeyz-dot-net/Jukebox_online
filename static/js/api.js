@@ -47,6 +47,11 @@ export class MusicAPI {
         return this.get('/status');
     }
 
+    // 流状态 API（用于检查后端推流是否仍在运行）
+    async getStreamStatus() {
+        return this.get('/stream/status');
+    }
+
     async play(url, title, type = 'local', streamFormat = 'mp3') {
         const formData = new FormData();
         formData.append('url', url);

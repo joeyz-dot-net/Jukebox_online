@@ -1,5 +1,94 @@
 [
   {
+    "url": "ETC/5 20AM.m4a",
+    "title": "5 20AM.m4a",
+    "name": "5 20AM.m4a",
+    "type": "local",
+    "duration": 0,
+    "ts": 1766162908,
+    "thumbnail_url": null,
+    "artist": "5 20AM.m4a",
+    "file_name": "5 20AM.m4a",
+    "file_extension": ".m4a",
+    "file_size": 0,
+    "play_count": 3,
+    "timestamps": "1766161053,1766162703,1766162908"
+  },
+  {
+    "url": "Jacky Cheung 张学友/张学友 - 只想一生跟你走.flac",
+    "title": "张学友 - 只想一生跟你走",
+    "name": "张学友 - 只想一生跟你走",
+    "type": "local",
+    "duration": 0,
+    "ts": 1766162348,
+    "thumbnail_url": null,
+    "artist": "张学友 - 只想一生跟你走",
+    "file_name": "张学友 - 只想一生跟你走.flac",
+    "file_extension": ".flac",
+    "file_size": 0,
+    "play_count": 2,
+    "timestamps": "1766122014,1766162348"
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=pwmHLAIsJHM",
+    "title": "单依纯 - 永不失联的爱  现场版 中国好声音2020  單依純 - 永不失聯的愛 中國好聲音2020",
+    "name": "单依纯 - 永不失联的爱  现场版 中国好声音2020  單依純 - 永不失聯的愛 中國好聲音2020",
+    "type": "youtube",
+    "duration": 0,
+    "ts": 1766161871,
+    "thumbnail_url": "https://img.youtube.com/vi/pwmHLAIsJHM/maxresdefault.jpg",
+    "artist": "单依纯 - 永不失联的爱  现场版 中国好声音2020  單依純 - 永不失聯的愛 中國好聲音2020",
+    "stream_type": "youtube",
+    "video_id": "pwmHLAIsJHM",
+    "play_count": 2,
+    "timestamps": "1766108813,1766161871"
+  },
+  {
+    "url": "ETC/三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
+    "title": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
+    "name": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
+    "type": "local",
+    "duration": 0,
+    "ts": 1766161798,
+    "thumbnail_url": null,
+    "artist": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
+    "file_name": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
+    "file_extension": ".flac",
+    "file_size": 0,
+    "play_count": 2,
+    "timestamps": "1766161192,1766161798"
+  },
+  {
+    "url": "ETC/三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
+    "title": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
+    "name": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
+    "type": "local",
+    "duration": 0,
+    "ts": 1766160898,
+    "thumbnail_url": null,
+    "artist": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
+    "file_name": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
+    "file_extension": ".flac",
+    "file_size": 0,
+    "play_count": 1,
+    "timestamps": "1766160898"
+  },
+  {
+    "url": "Stefanie Sun 孫燕姿/2000台北演唱会/01. 孙燕姿 - 天黑黑 (CD Version).flac",
+    "title": "01. 孙燕姿 - 天黑黑 (CD Version)",
+    "name": "01. 孙燕姿 - 天黑黑 (CD Version)",
+    "type": "local",
+    "duration": 0,
+    "ts": 1766121967,
+    "thumbnail_url": null,
+    "artist": "01. 孙燕姿 - 天黑黑 (CD Version)",
+    "file_name": "01. 孙燕姿 - 天黑黑 (CD Version).flac",
+    "file_extension": ".flac",
+    "file_size": 0,
+    "play_count": 1,
+    "timestamps": "1766121967"
+  },
+  {
     "url": "ETC/三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
     "title": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
     "name": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
@@ -11,7 +100,8 @@
     "file_name": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
     "file_extension": ".flac",
     "file_size": 0,
-    "play_count": 69
+    "play_count": 1,
+    "timestamps": "1766109630"
   },
   {
     "url": "ETC/5 20AM.m4a",
@@ -25,35 +115,8 @@
     "file_name": "5 20AM.m4a",
     "file_extension": ".m4a",
     "file_size": 0,
-    "play_count": 26
-  },
-  {
-    "url": "Jacky Cheung 张学友/张学友 - 只想一生跟你走.flac",
-    "title": "张学友 - 只想一生跟你走",
-    "name": "张学友 - 只想一生跟你走",
-    "type": "local",
-    "duration": 0,
-    "ts": 1766109469,
-    "thumbnail_url": null,
-    "artist": "张学友 - 只想一生跟你走",
-    "file_name": "张学友 - 只想一生跟你走.flac",
-    "file_extension": ".flac",
-    "file_size": 0,
-    "play_count": 85
-  },
-  {
-    "url": "Stefanie Sun 孫燕姿/2000台北演唱会/01. 孙燕姿 - 天黑黑 (CD Version).flac",
-    "title": "01. 孙燕姿 - 天黑黑 (CD Version)",
-    "name": "01. 孙燕姿 - 天黑黑 (CD Version)",
-    "type": "local",
-    "duration": 0,
-    "ts": 1766109432,
-    "thumbnail_url": null,
-    "artist": "01. 孙燕姿 - 天黑黑 (CD Version)",
-    "file_name": "01. 孙燕姿 - 天黑黑 (CD Version).flac",
-    "file_extension": ".flac",
-    "file_size": 0,
-    "play_count": 3
+    "play_count": 1,
+    "timestamps": "1766109613"
   },
   {
     "url": "https://www.youtube.com/watch?v=kzZ7Jc8C4wA",
@@ -66,20 +129,8 @@
     "artist": "孫燕姿 Sun Yanzi TOP25 Video 必聽經典25首 [情歌療癒系MV] 串燒 無間斷 完整聆聽 KTV必唱 經典K歌 回憶殺 我懷念的 無敵孫式情歌 我不難過 開始懂了 遇見 天黑黑",
     "stream_type": "youtube",
     "video_id": "kzZ7Jc8C4wA",
-    "play_count": 2
-  },
-  {
-    "url": "https://www.youtube.com/watch?v=pwmHLAIsJHM",
-    "title": "单依纯 - 永不失联的爱  现场版 中国好声音2020  單依純 - 永不失聯的愛 中國好聲音2020",
-    "name": "单依纯 - 永不失联的爱  现场版 中国好声音2020  單依純 - 永不失聯的愛 中國好聲音2020",
-    "type": "youtube",
-    "duration": 0,
-    "ts": 1766108813,
-    "thumbnail_url": "https://img.youtube.com/vi/pwmHLAIsJHM/maxresdefault.jpg",
-    "artist": "单依纯 - 永不失联的爱  现场版 中国好声音2020  單依純 - 永不失聯的愛 中國好聲音2020",
-    "stream_type": "youtube",
-    "video_id": "pwmHLAIsJHM",
-    "play_count": 22
+    "play_count": 1,
+    "timestamps": "1766109056"
   },
   {
     "url": "https://www.youtube.com/watch?v=crEh38PNAfw",
@@ -92,7 +143,8 @@
     "artist": "Top Hits 2026 | Spotify Winter 2025/2026 ❄️ Most Popular Spotify Songs 🎵 Chill Mix Playlist",
     "stream_type": "youtube",
     "video_id": "crEh38PNAfw",
-    "play_count": 8
+    "play_count": 1,
+    "timestamps": "1766108784"
   },
   {
     "url": "https://www.youtube.com/watch?v=viis5-_JjXQ",
@@ -105,7 +157,8 @@
     "artist": "【張學友 - Jacky Cheung 粤语歌曲】張學友20精選歌曲《還是覺得妳最好, 分手總要在雨天, 情已逝, 暗戀你, 我醒著做夢, 真情流露, 一千个伤心的理由, 藍雨, ...》",
     "stream_type": "youtube",
     "video_id": "viis5-_JjXQ",
-    "play_count": 20
+    "play_count": 1,
+    "timestamps": "1765994669"
   },
   {
     "url": "Jacky Cheung 张学友/张学友 - 一千个伤心的理由.flac",
@@ -119,7 +172,8 @@
     "file_name": "张学友 - 一千个伤心的理由.flac",
     "file_extension": ".flac",
     "file_size": 0,
-    "play_count": 50
+    "play_count": 1,
+    "timestamps": "1765994668"
   },
   {
     "url": "G.E.M 邓紫棋/启示录/11. G.E.M.邓紫棋 - 离心力.flac",
@@ -133,7 +187,8 @@
     "file_name": "11. G.E.M.邓紫棋 - 离心力.flac",
     "file_extension": ".flac",
     "file_size": 0,
-    "play_count": 69
+    "play_count": 1,
+    "timestamps": "1765994664"
   },
   {
     "url": "https://www.youtube.com/watch?v=PisAtilDIis",
@@ -146,7 +201,8 @@
     "artist": "【歌手2025·纯享】 #单依纯《君》“经典传承”！创新串烧改编 传递跨越时空的怀念 |《歌手2025》| SINGER 2025｜MangoTV",
     "stream_type": "youtube",
     "video_id": "PisAtilDIis",
-    "play_count": 11
+    "play_count": 1,
+    "timestamps": "1765994530"
   },
   {
     "url": "Jacky Cheung 张学友/张学友 - 偷心.flac",
@@ -160,7 +216,8 @@
     "file_name": "张学友 - 偷心.flac",
     "file_extension": ".flac",
     "file_size": 0,
-    "play_count": 32
+    "play_count": 1,
+    "timestamps": "1765994145"
   },
   {
     "url": "Stefanie Sun 孫燕姿/2000台北演唱会/03. 孙燕姿 - 很好(Live).flac",
@@ -174,7 +231,8 @@
     "file_name": "03. 孙燕姿 - 很好(Live).flac",
     "file_extension": ".flac",
     "file_size": 0,
-    "play_count": 15
+    "play_count": 1,
+    "timestamps": "1765987880"
   },
   {
     "url": "单依纯/单依纯 - 开始懂了 (live).flac",
@@ -188,7 +246,8 @@
     "file_name": "单依纯 - 开始懂了 (live).flac",
     "file_extension": ".flac",
     "file_size": 0,
-    "play_count": 4
+    "play_count": 1,
+    "timestamps": "1765936237"
   },
   {
     "url": "单依纯/单依纯 - 不值得 (Live).flac",
@@ -202,7 +261,8 @@
     "file_name": "单依纯 - 不值得 (Live).flac",
     "file_extension": ".flac",
     "file_size": 0,
-    "play_count": 5
+    "play_count": 1,
+    "timestamps": "1765935794"
   },
   {
     "url": "单依纯/单依纯 - 爱的回归线 (Live版).flac",
@@ -216,7 +276,8 @@
     "file_name": "单依纯 - 爱的回归线 (Live版).flac",
     "file_extension": ".flac",
     "file_size": 0,
-    "play_count": 5
+    "play_count": 1,
+    "timestamps": "1765935353"
   },
   {
     "url": "单依纯/单依纯 还有什么更好的.flac",
@@ -230,7 +291,8 @@
     "file_name": "单依纯 还有什么更好的.flac",
     "file_extension": ".flac",
     "file_size": 0,
-    "play_count": 6
+    "play_count": 1,
+    "timestamps": "1765935243"
   },
   {
     "url": "https://www.youtube.com/watch?v=EtwgTAVeEQc",
@@ -243,7 +305,8 @@
     "artist": "“R&B小天后”单依纯十大封神名场面大盘点！唱一首爆一首！天花板级别！#单依纯 #中国好声音 #天赐的声音",
     "stream_type": "youtube",
     "video_id": "EtwgTAVeEQc",
-    "play_count": 7
+    "play_count": 1,
+    "timestamps": "1765758195"
   },
   {
     "url": "https://www.youtube.com/watch?v=iy8-IviW3Qo",
@@ -256,7 +319,8 @@
     "artist": "【歌手2025·纯享】 #单依纯 《珠玉》“神女吟唱”！奇幻 迷离又绵延不绝｜《歌手2025》| SINGER 2025｜MangoTV",
     "stream_type": "youtube",
     "video_id": "iy8-IviW3Qo",
-    "play_count": 6
+    "play_count": 1,
+    "timestamps": "1765732513"
   },
   {
     "url": "https://www.youtube.com/watch?v=lGckkwfhJFQ",
@@ -269,7 +333,8 @@
     "artist": "单依纯爆裂舞台全回顾 天才R&B歌手！最完美演绎《别问很可怕》💕",
     "stream_type": "youtube",
     "video_id": "lGckkwfhJFQ",
-    "play_count": 3
+    "play_count": 1,
+    "timestamps": "1765732508"
   },
   {
     "url": "G.E.M 邓紫棋/T.I.M.E/01. G.E.M.邓紫棋 - 情人.flac",
@@ -283,6 +348,7 @@
     "file_name": "01. G.E.M.邓紫棋 - 情人.flac",
     "file_extension": ".flac",
     "file_size": 0,
-    "play_count": 1
+    "play_count": 1,
+    "timestamps": "1765723928"
   }
 ]

@@ -1,11 +1,20 @@
 # Music Player AI Agent Guide
 
+## Quick Start for AI Agents
+**This project is a bilingual (Chinese/English) web-based music player with FastAPI backend and vanilla ES6 frontend.**
+- **Immediate context**: Read [Architecture snapshot](#architecture-snapshot) first, then check specific concerns in subsections below.
+- **Making changes**: Always update both frontend (FormData field names in [static/js/api.js](static/js/api.js)) and backend (route handlers in [app.py](app.py)). Run `python main.py` to test locally.
+- **Streaming issues**: 90% of audio dropout/quality problems are in [models/stream.py](models/stream.py) thread architecture—refer to [doc/SAFARI_STREAMING_FIX_COMPLETE.md](doc/SAFARI_STREAMING_FIX_COMPLETE.md) lines 1-197 before making changes.
+- **Settings changes**: Always restart app (reload=False in uvicorn) after editing [settings.ini](settings.ini). Changes to [models/settings.py](models/settings.py) take effect immediately.
+- **Testing**: Use `python main.py`, navigate to http://0.0.0.0:80, open browser DevTools (F12) for network/console diagnostics. PowerShell for system checks: `Get-Process mpv`, `Test-Path "\\.\pipe\mpv-pipe"`.
+
 ## Architecture snapshot
-- **Backend**: FastAPI in [app.py](app.py) (1429 lines, 50+ routes) built around module-level singletons: `PLAYER = MusicPlayer.initialize()`, `PLAYLISTS_MANAGER = Playlists()`, `RANK_MANAGER = HitRank()`, `CURRENT_PLAYLIST_ID`. Business logic lives in [models/](models/) (player.py 1391 lines, song.py, stream.py 896 lines). No dependency injection—all state is global and auto-persisted.
+- **Backend**: FastAPI in [app.py](app.py) (1701 lines, 50+ routes) built around module-level singletons: `PLAYER = MusicPlayer.initialize()`, `PLAYLISTS_MANAGER = Playlists()`, `RANK_MANAGER = HitRank()`, `SETTINGS = initialize_settings()`, `CURRENT_PLAYLIST_ID`. Business logic lives in [models/](models/) (player.py 1391 lines, song.py, stream.py 885 lines, settings.py manages user preferences). No dependency injection—all state is global and auto-persisted.
 - **Entry**: `python main.py` boots uvicorn (reload=False), forces UTF-8 stdout/stderr for Windows compatibility, imports [app.py](app.py) which auto-initializes MPV subprocess + FFmpeg streaming process, loads playback_history.json, playlist.json, playlists.json on import. No hot-reload of settings.ini—restart required for config changes.
-- **Frontend**: [templates/index.html](templates/index.html) (512 lines) + modular ES6 in [static/js/](static/js/): main.js (1115 lines) wires MusicPlayerApp class coordinating PlayerManager/PlaylistManager/SearchManager/RankingManager/VolumeControl/ThemeManager modules via ES6 imports, polls /status ~500ms, uses FormData POSTs. Bilingual UI (Chinese in response strings, English in code/comments).
+- **Frontend**: [templates/index.html](templates/index.html) (600 lines) + modular ES6 in [static/js/](static/js/): main.js (1155 lines) wires MusicPlayerApp class coordinating PlayerManager/PlaylistManager/SearchManager/RankingManager/VolumeControl/ThemeManager/SettingsManager modules via ES6 imports, polls /status ~500ms, uses FormData POSTs. Bilingual UI (Chinese in response strings, English in code/comments).
 - **Audio playback (MPV)**: External mpv.exe process spawned via subprocess.Popen with named pipe IPC (Windows: `\\.\pipe\mpv-pipe`). All communication through [models/player.py](models/player.py) methods `mpv_command(cmd_list)` and `mpv_get(prop)`. Pipe/command path from settings.ini `[app].mpv_cmd`. Supports local files (.mp3, .wav, .flac, .aac, .m4a) and YouTube URLs via yt-dlp.
-- **Audio streaming (FFmpeg)**: [models/stream.py](models/stream.py) (729 lines) provides browser audio stream via /stream/play endpoint. **Critical 2024 optimization**: 3-thread async non-blocking broadcast (read_stream + broadcast_worker + send_heartbeats threads) replaces sync blocking. FFmpeg parameters optimized for low-latency (rtbufsize 8M, thread_queue_size 256). Browser-specific queue sizing (Safari 16MB, Chrome/Edge 64MB). Format-aware keepalive packets prevent Safari audio dropout. See [doc/SAFARI_STREAMING_FIX_COMPLETE.md](doc/SAFARI_STREAMING_FIX_COMPLETE.md) for complete optimization details.
+- **Audio streaming (FFmpeg)**: [models/stream.py](models/stream.py) (896 lines) provides browser audio stream via /stream/play endpoint. **Critical 2024 optimization**: 3-thread async non-blocking broadcast (read_stream + broadcast_worker + send_heartbeats threads) replaces sync blocking. FFmpeg parameters optimized for low-latency (rtbufsize 8M, thread_queue_size 256). Browser-specific queue sizing (Safari 16MB, Chrome/Edge 64MB). Format-aware keepalive packets prevent Safari audio dropout. See [doc/SAFARI_STREAMING_FIX_COMPLETE.md](doc/SAFARI_STREAMING_FIX_COMPLETE.md) for complete optimization details.
+- **User settings**: [models/settings.py](models/settings.py) manages user_settings.json (theme, language, auto_stream, stream_volume). Singleton `SETTINGS` initialized at app boot, with endpoints /settings (GET/POST) and /settings/{key} (POST) for CRUD. Settings auto-persisted after mutations via `SETTINGS.save()`.
 
 ## Start & debug
 - **Install/run**: `pip install -r requirements.txt; python main.py` (restart after any settings.ini change). Requires mpv.exe in project root or `C:\mpv\` + FFmpeg in PATH. Frontend at http://0.0.0.0:80 (default, configurable via settings.ini [app] server_host/server_port). Build standalone exe with `build_exe.bat` (uses PyInstaller, bundles mpv.exe but requires yt-dlp.exe and ffmpeg.exe manually).
@@ -23,12 +32,14 @@
 - **JSON state files**: playback_history.json (array of {url, title, type, ts/timestamp}), playlists.json (dict {playlist_id → {id, name, songs:[], created_at, updated_at}}). Auto-saved on mutations via PLAYLISTS_MANAGER.save().
 
 ## Adding/using routes
-- Define in [app.py](app.py) with FastAPI decorators (@app.post, @app.get, @app.delete); call global singletons (PLAYER, PLAYLISTS_MANAGER, RANK_MANAGER). Keep field names sync'd with frontend FormData calls in [static/js/api.js](static/js/api.js).
+- Define in [app.py](app.py) with FastAPI decorators (@app.post, @app.get, @app.delete); call global singletons (PLAYER, PLAYLISTS_MANAGER, RANK_MANAGER, SETTINGS). Keep field names sync'd with frontend FormData calls in [static/js/api.js](static/js/api.js).
 - **Streaming routes**: /stream/play (audio to browser), /stream/aac (AAC-specific), /stream/control (start/stop), /stream/status (diagnostics). All support async generators with queue-per-client architecture.
+- **Settings routes**: /settings (GET returns all settings, POST updates batch), /settings/{key} (POST to set single key), /settings/reset (POST to reset to defaults). All validate key against SETTINGS.DEFAULT_SETTINGS before applying.
 - /status endpoint returns combined MPV properties (paused, time_pos, duration, volume) + current_meta snapshot for ~500ms polling.
 
 ## Frontend patterns
-- [static/js/api.js](static/js/api.js) centralizes fetch helpers with error handling; [static/js/main.js](static/js/main.js) MusicPlayerApp class initializes via ES6 imports (PlayerManager via player.js, PlaylistManager via playlist.js, SearchManager via search.js, RankingManager via ranking.js, VolumeControl via volume.js, ThemeManager via themeManager.js).
+- [static/js/api.js](static/js/api.js) centralizes fetch helpers with error handling; [static/js/main.js](static/js/main.js) MusicPlayerApp class initializes via ES6 imports (PlayerManager via player.js, PlaylistManager via playlist.js, SearchManager via search.js, RankingManager via ranking.js, VolumeControl via volume.js, ThemeManager via themeManager.js, SettingsManager via settingsManager.js).
+- **Settings UI** in [static/js/settingsManager.js](static/js/settingsManager.js): manages theme (light/dark/auto), language (auto/zh/en), auto_stream (bool), stream_volume (0-100). Settings sync with /settings endpoints; all values auto-persist in user_settings.json. Theme changes apply immediately; language changes require reload.
 - **Queue dedup**: Frontend tracks playlistUrlSet to prevent duplicate entries.
 - **Ranking UI** in [static/js/ranking.js](static/js/ranking.js); formats dates as Chinese relative time (e.g., "1小时前", "3天前").
 - **Search** uses debounced input (300ms) with localStorage history; drag-drop reordering in [static/js/playlist.js](static/js/playlist.js) supports mobile touch events; local song tree browsing in [static/js/local.js](static/js/local.js).
@@ -36,6 +47,12 @@
 ## Ranking & history specifics
 - **Endpoint**: GET /ranking?period=all|week|month returns {status, period, ranking:[{url,title,type,thumbnail_url,play_count,last_played}]}.
 - **History tracking**: All plays recorded to playback_history.json with timestamp on each play() call. HitRank filters by time period (7/30 days or all-time).
+
+## User Settings & Persistence
+- **UserSettings class** ([models/settings.py](models/settings.py)): singleton managing theme, language, auto_stream, stream_volume via user_settings.json. Keys auto-validated against DEFAULT_SETTINGS—invalid keys removed on load. Methods: get(key, default), set(key, value), update(dict), get_all(), reset().
+- **Backend endpoints** (/settings, /settings/{key}, /settings/reset): validate key before applying changes; return 400 if invalid key. Always preserve valid keys only (see line ~1319 in app.py for validation pattern).
+- **Frontend sync**: SettingsManager loads at app init, listens to POST /settings responses, applies theme/language immediately. Changes logged; no full reload needed except language changes (i18n).
+- **Common pattern**: Frontend calls POST /settings/{key} with {value: ...}; backend validates key, calls SETTINGS.set(key, value), returns updated settings. Always check SETTINGS.DEFAULT_SETTINGS before adding new keys.
 
 ## Testing & validation
 - Manual checks: /stream/status for streaming health, /ranking?period=all for history data, browser Network tab for audio chunks.
@@ -70,5 +87,13 @@
 - **External executables**: mpv.exe (required, audio/video playback), yt-dlp.exe (optional, YouTube), ffmpeg.exe (optional, browser streaming). Only mpv.exe bundled in PyInstaller; others must be downloaded/installed separately.
 - **Windows-specific**: UTF-8 stdout forced in [main.py](main.py) and [models/player.py](models/player.py); named pipe IPC via `\\.\pipe\mpv-pipe`; FFmpeg audio capture via dshow (-f dshow -i audio="...").
 
+## Quick Debugging Checklist
+- **Settings changes not persisting**: Check user_settings.json exists in project root; verify SETTINGS.save() called after update (should be automatic via endpoint). Restart required for settings.ini changes (not user_settings.json).
+- **Playback fails silently**: Check MPV: `Get-Process mpv` and `Test-Path "\\.\pipe\mpv-pipe"`. Verify settings.ini `[app].mpv_cmd` path exists. Check PLAYER.pipe_name matches MPV_CMD args. See [models/player.py](models/player.py) `_init_mpv()`.
+- **Streaming audio cuts out (Safari/Chrome)**: Verify three threads in stream.py (read_stream, broadcast_worker, send_heartbeats) active. Check get_keepalive_chunk() format support (MP3/AAC/FLAC). See [doc/SAFARI_STREAMING_FIX_COMPLETE.md](doc/SAFARI_STREAMING_FIX_COMPLETE.md).
+- **YouTube fails**: Check yt-dlp.exe in PATH. Verify YouTube URL extraction in PLAYER.play(). See [test/test_youtube_simple.py](test/test_youtube_simple.py). Titles arrive async—UI falls back: current_title → media_title → title → name → url.
+- **Settings UI not loading**: Check SettingsManager.init() called in main.js; verify /settings endpoint returns valid schema. Check browser console for fetch errors.
+- **High CPU from /status polling**: Already filtered in [main.py](main.py) (PollingRequestFilter samples 1/10). Add new high-frequency paths to FILTERED_PATHS set to reduce logging noise.
+
 ## More references
-- README.md, doc/FILE_STRUCTURE.md, doc/ROUTES_MAPPING.md for expanded API maps and module organization.
+- See [README.md](README.md) for feature overview and setup instructions. Detailed issue tracking and optimization history in [doc/](doc/) folder (SAFARI_STREAMING_FIX_COMPLETE.md covers 2024 critical streaming fixes).

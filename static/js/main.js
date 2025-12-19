@@ -53,6 +53,9 @@ class MusicPlayerApp {
             // 1. 初始化 UI 元素
             this.initUIElements();
             
+            // 1.5 [关键] 页面刷新后快速恢复流连接（不等待其他初始化）
+            this.fastRestoreStream();
+            
             // 2. 初始化播放器
             this.initPlayer();
             
@@ -105,7 +108,7 @@ class MusicPlayerApp {
             // 7.7 初始化导航栏
             navManager.init();
             
-            // 7.8 恢复推流激活状态和播放状态
+            // 7.8 完整的状态恢复（备用，以防快速恢复失败）
             this.restorePlayState();
             
             // 8. 启动状态轮询（每200ms更新一次）
@@ -293,6 +296,49 @@ class MusicPlayerApp {
      * 1. 推流激活状态
      * 2. 正在播放的音乐
      */
+    // [快速恢复] 页面刷新后立即恢复流连接（不等待其他初始化）
+    fastRestoreStream() {
+        try {
+            const savedStreamState = localStorage.getItem('currentStreamState');
+            if (!savedStreamState) return;
+            
+            const streamState = JSON.parse(savedStreamState);
+            
+            // 检查状态是否仍然有效（30秒内）
+            if (Date.now() - streamState.timestamp > 30 * 1000) {
+                console.log('[快速恢复] 流状态已过期，跳过恢复');
+                localStorage.removeItem('currentStreamState');
+                return;
+            }
+            
+            // 检查音频元素是否存在
+            const audioElement = document.getElementById('browserStreamAudio');
+            if (!audioElement) {
+                console.warn('[快速恢复] 音频元素不存在，跳过恢复');
+                return;
+            }
+            
+            // 立即尝试恢复流
+            console.log('[快速恢复] 检测到之前的活跃流，立即恢复:', {
+                title: streamState.title,
+                format: streamState.format,
+                age: Math.round((Date.now() - streamState.timestamp) / 1000) + 's'
+            });
+            
+            // 使用异步处理以避免阻塞初始化
+            Promise.resolve().then(() => {
+                const streamFormat = streamState.format || 'mp3';
+                player.startBrowserStream(streamFormat);
+                console.log('[快速恢复] ✓ 流恢复命令已发送');
+            }).catch(err => {
+                console.error('[快速恢复] 恢复失败:', err);
+            });
+            
+        } catch (error) {
+            console.warn('[快速恢复] 解析流状态失败:', error);
+        }
+    }
+
     async restorePlayState() {
         try {
             // 恢复推流激活状态
@@ -303,6 +349,55 @@ class MusicPlayerApp {
                     autoStreamEl.checked = true;
                 }
                 console.log('[恢复状态] ✓ 推流已恢复为激活状态');
+            }
+            
+            // 恢复播放流的状态（页面刷新后）
+            const savedStreamState = localStorage.getItem('currentStreamState');
+            if (savedStreamState) {
+                try {
+                    const streamState = JSON.parse(savedStreamState);
+                    
+                    // 检查保存的状态是否仍然有效（5分钟内）
+                    if (Date.now() - streamState.timestamp < 5 * 60 * 1000) {
+                        console.log('[恢复状态] 检测到活跃的直播流，准备恢复:', {
+                            url: streamState.url,
+                            title: streamState.title,
+                            format: streamState.format
+                        });
+                        
+                        // 恢复当前歌单ID
+                        if (streamState.playlistId) {
+                            this.currentPlaylistId = streamState.playlistId;
+                        }
+                        
+                        // 先检查后端流是否仍在运行，防止断开
+                        try {
+                            const streamStatus = await api.getStreamStatus();
+                            console.log('[恢复状态] 后端流状态:', {
+                                running: streamStatus.data?.running,
+                                format: streamStatus.data?.format
+                            });
+                        } catch (err) {
+                            console.warn('[恢复状态] 无法获取后端流状态:', err);
+                        }
+                        
+                        // 立即（不延迟）恢复直播连接
+                        try {
+                            console.log('[恢复状态] 立即重新连接直播流...');
+                            const streamFormat = streamState.format || 'mp3';
+                            player.startBrowserStream(streamFormat);
+                            console.log('[恢复状态] ✓ 直播流已恢复');
+                        } catch (err) {
+                            console.error('[恢复状态] 恢复直播流失败:', err);
+                        }
+                    } else {
+                        // 状态已过期，清除
+                        localStorage.removeItem('currentStreamState');
+                    }
+                } catch (err) {
+                    console.warn('[恢复状态] 解析保存的流状态失败:', err);
+                    localStorage.removeItem('currentStreamState');
+                }
             }
             
             // 恢复播放状态
@@ -321,6 +416,78 @@ class MusicPlayerApp {
         } catch (error) {
             console.error('[恢复状态] 恢复失败:', error);
         }
+    }
+
+    // 保存当前播放流的状态（页面卸载时）
+    saveStreamState() {
+        try {
+            const audioElement = document.getElementById('browserStreamAudio');
+            
+            // 激进的保存策略：只要音频元素存在并有 src，就保存状态
+            // （即使暂停了，也可能需要恢复）
+            if (audioElement && audioElement.src) {
+                const streamState = {
+                    url: player.currentPlayingUrl || 'stream',
+                    title: document.getElementById('playerTitle')?.textContent || 'Unknown',
+                    format: localStorage.getItem('streamFormat') || 'mp3',
+                    playlistId: this.currentPlaylistId || 'default',
+                    timestamp: Date.now(),
+                    isPlaying: !audioElement.paused,
+                    wasConnected: true  // 标记表示之前有活跃连接
+                };
+                
+                localStorage.setItem('currentStreamState', JSON.stringify(streamState));
+                console.log('[保存状态] 直播流状态已保存:', { 
+                    isPlaying: streamState.isPlaying, 
+                    format: streamState.format 
+                });
+            }
+        } catch (error) {
+            console.warn('[保存状态] 保存流状态失败:', error);
+        }
+    }
+
+    // 设置页面可见性监听（用于刷新后自动恢复流）
+    setupPageVisibilityListener() {
+        document.addEventListener('visibilitychange', async () => {
+            // 页面从隐藏变为可见时（页面被激活/刷新后焦点返回）
+            if (!document.hidden) {
+                console.log('[可见性] 页面已重新激活，尝试恢复推流...');
+                
+                // 延迟200ms确保DOM完全渲染
+                setTimeout(async () => {
+                    const savedStreamState = localStorage.getItem('currentStreamState');
+                    if (savedStreamState) {
+                        try {
+                            const streamState = JSON.parse(savedStreamState);
+                            
+                            // 检查流状态是否仍然有效（30秒内）
+                            if (Date.now() - streamState.timestamp < 30 * 1000) {
+                                const audioElement = document.getElementById('browserStreamAudio');
+                                
+                                // 如果流已断开，立即恢复
+                                if (!audioElement || !audioElement.src || audioElement.paused) {
+                                    console.log('[可见性] 直播流已断开，立即恢复:', streamState.title);
+                                    
+                                    const streamFormat = streamState.format || 'mp3';
+                                    player.startBrowserStream(streamFormat);
+                                    
+                                    console.log('[可见性] ✓ 推流已恢复');
+                                } else {
+                                    console.log('[可见性] 推流仍在运行，无需恢复');
+                                }
+                            } else {
+                                // 状态过期
+                                console.log('[可见性] 保存的流状态已过期，清除');
+                                localStorage.removeItem('currentStreamState');
+                            }
+                        } catch (err) {
+                            console.error('[可见性] 恢复流失败:', err);
+                        }
+                    }
+                }, 200);
+            }
+        });
     }
 
     // 初始化播放列表
@@ -1171,23 +1338,13 @@ const app = new MusicPlayerApp();
 
 // 页面卸载时的清理逻辑（处理页面刷新/关闭时的stream断开）
 window.addEventListener('beforeunload', () => {
-    // 停止推流
-    const audioElement = document.getElementById('browserStreamAudio');
-    if (audioElement) {
-        try {
-            audioElement.pause();
-            audioElement.src = '';
-            audioElement.load();
-            console.log('[清理] 页面卸载时停止了推流');
-        } catch (e) {
-            // 忽略错误
-        }
-    }
+    // 保存当前的推流状态（供刷新后恢复）
+    // 即使流已断开，仍然保存最后的状态，以便恢复时快速重连
+    app.saveStreamState();
     
-    // 停止状态轮询
-    if (player && typeof player.stopPolling === 'function') {
-        player.stopPolling();
-    }
+    // 注意：不要在这里调用 stopPolling 或断开连接
+    // 原因：beforeunload 是异步的，浏览器会自动断开所有连接
+    // 我们的工作是保存状态，让后端和前端在恢复时处理重连
 });
 
 // DOM 加载完成后初始化
