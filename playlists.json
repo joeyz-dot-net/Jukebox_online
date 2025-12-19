@@ -90,10 +90,16 @@
     {
       "id": "1766107208905",
       "name": "3st的歌单",
-      "songs": [],
-      "song_count": 0,
+      "songs": [
+        {
+          "url": "Lexie Liu  刘柏辛/刘柏辛Lexie - 地球蓝 Aqua Blue.flac",
+          "title": "刘柏辛Lexie - 地球蓝 Aqua Blue.flac",
+          "type": "local"
+        }
+      ],
+      "song_count": 1,
       "created_at": 1766107208.9054546,
-      "updated_at": 1766107208.9054546
+      "updated_at": 1766183202.7920434
     }
   ]
 }

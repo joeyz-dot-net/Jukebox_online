@@ -1,74 +1,128 @@
 import { Toast } from './ui.js';
 
-const buildFileCardsHTML = (node, currentPath = []) => {
+let expandedDirs = new Set();  // 追踪展开的文件夹
+
+const buildTreeHTML = (node, depth = 0, parentPath = '') => {
     if (!node) {
         return '<div class="local-empty">暂无本地文件</div>';
-    }
-
-    let html = '';
-
-    // 面包屑导航
-    if (currentPath.length > 0) {
-        const breadcrumbs = currentPath.map((item, index) => {
-            const path = currentPath.slice(0, index + 1).join('/');
-            return `<span class="breadcrumb-item" data-path="${path}">${item}</span>`;
-        }).join('<span class="breadcrumb-sep">/</span>');
-        
-        html += `<div class="local-breadcrumb">
-            <span class="breadcrumb-home" data-path="">🏠 根目录</span>
-            ${breadcrumbs ? '<span class="breadcrumb-sep">/</span>' + breadcrumbs : ''}
-        </div>`;
     }
 
     const dirs = node.dirs || [];
     const files = node.files || [];
 
     if (!dirs.length && !files.length) {
-        return html + '<div class="local-empty">此目录为空</div>';
+        return '<div class="local-empty">此目录为空</div>';
     }
 
-    // 文件夹卡片
-    const dirCards = dirs.map(dir => `
-        <div class="local-card local-dir-card" data-dir-name="${dir.name}" title="${dir.name}">
-            <div class="local-card-icon">📁</div>
-            <div class="local-card-body">
-                <div class="local-card-title">${dir.name}</div>
-                <div class="local-card-meta">文件夹</div>
-            </div>
-        </div>
-    `).join('');
+    let html = '<div class="local-tree">';
 
-    // 歌曲文件卡片
-    const fileCards = files.map(file => `
-        <div class="local-card local-file-card" data-file-path="${file.rel}" data-file-name="${file.name}" title="${file.name}">
-            <div class="local-card-icon">🎵</div>
-            <div class="local-card-body">
-                <div class="local-card-title">${file.name}</div>
-                <div class="local-card-meta">歌曲</div>
+    // 文件夹项
+    dirs.forEach(dir => {
+        const dirId = `dir-${parentPath}${dir.name}`;
+        const isExpanded = expandedDirs.has(dirId);
+        const toggleClass = isExpanded ? 'expanded' : 'collapsed';
+        
+        html += `
+            <div class="tree-item tree-folder" data-dir-id="${dirId}" data-dir-name="${dir.name}" style="padding-left: ${depth * 20}px">
+                <span class="tree-toggle ${toggleClass}">▶</span>
+                <span class="tree-icon">📁</span>
+                <span class="tree-label">${dir.name}</span>
             </div>
-        </div>
-    `).join('');
+        `;
+        
+        // 如果展开了，显示子内容
+        if (isExpanded) {
+            const subTree = buildSubTreeHTML(dir, depth + 1, `${parentPath}${dir.name}/`);
+            html += subTree;
+        }
+    });
 
-    html += `<div class="local-card-grid">${dirCards}${fileCards}</div>`;
+    // 文件项
+    files.forEach(file => {
+        html += `
+            <div class="tree-item tree-file" data-file-path="${file.rel}" data-file-name="${file.name}" style="padding-left: ${depth * 20}px">
+                <span class="tree-icon">🎵</span>
+                <span class="tree-label">${file.name}</span>
+            </div>
+        `;
+    });
+
+    html += '</div>';
     return html;
+};
+
+const buildSubTreeHTML = (node, depth, parentPath) => {
+    const dirs = node.dirs || [];
+    const files = node.files || [];
+    let html = '';
+
+    dirs.forEach(dir => {
+        const dirId = `dir-${parentPath}${dir.name}`;
+        const isExpanded = expandedDirs.has(dirId);
+        const toggleClass = isExpanded ? 'expanded' : 'collapsed';
+        
+        html += `
+            <div class="tree-item tree-folder" data-dir-id="${dirId}" data-dir-name="${dir.name}" style="padding-left: ${depth * 20}px">
+                <span class="tree-toggle ${toggleClass}">▶</span>
+                <span class="tree-icon">📁</span>
+                <span class="tree-label">${dir.name}</span>
+            </div>
+        `;
+        
+        if (isExpanded) {
+            const subTree = buildSubTreeHTML(dir, depth + 1, `${parentPath}${dir.name}/`);
+            html += subTree;
+        }
+    });
+
+    files.forEach(file => {
+        html += `
+            <div class="tree-item tree-file" data-file-path="${file.rel}" data-file-name="${file.name}" style="padding-left: ${depth * 20}px">
+                <span class="tree-icon">🎵</span>
+                <span class="tree-label">${file.name}</span>
+            </div>
+        `;
+    });
+
+    return html;
+};
+
+// 保持原来的函数名用于兼容性，但现在调用树状函数
+const buildFileCardsHTML = (node, currentPath = []) => {
+    return buildTreeHTML(node, 0, '');
 };
 
 export const localFiles = {
     treeEl: null,
+    contentEl: null,
+    searchInput: null,
     getPlaylistId: () => 'default',
     fullTree: null,
     currentPath: [],
+    searchQuery: '',
 
     async init({ treeEl, getCurrentPlaylistId }) {
         this.treeEl = treeEl;
+        this.contentEl = treeEl.querySelector('#localContent');
+        this.searchInput = treeEl.querySelector('#localSearchInput');
+        
         if (typeof getCurrentPlaylistId === 'function') {
             this.getPlaylistId = getCurrentPlaylistId;
         }
+        
+        // 绑定搜索输入事件
+        if (this.searchInput) {
+            this.searchInput.addEventListener('input', (e) => {
+                this.searchQuery = e.target.value.toLowerCase();
+                this.renderCurrentLevel();
+            });
+        }
+        
         await this.loadTree();
     },
 
     async loadTree() {
-        if (!this.treeEl) return;
+        if (!this.contentEl) return;
         try {
             const response = await fetch('/tree');
             if (!response.ok) {
@@ -82,7 +136,7 @@ export const localFiles = {
                 this.currentPath = [];
                 this.renderCurrentLevel();
             } else {
-                this.treeEl.innerHTML = '<div class="local-empty">暂无本地文件</div>';
+                this.contentEl.innerHTML = '<div class="local-empty">暂无本地文件</div>';
             }
         } catch (error) {
             console.error('加载本地文件树失败:', error);
@@ -101,41 +155,68 @@ export const localFiles = {
         return node;
     },
 
+    filterNode(node, query) {
+        if (!node || !query) {
+            return node;
+        }
+        
+        // 过滤文件夹和文件
+        const filteredDirs = (node.dirs || []).filter(dir => {
+            // 如果文件夹名称匹配，包含它
+            if (dir.name.toLowerCase().includes(query)) {
+                return true;
+            }
+            // 如果文件夹内的文件匹配，也包含文件夹
+            const filteredFiles = (dir.files || []).filter(file =>
+                file.name.toLowerCase().includes(query)
+            );
+            return filteredFiles.length > 0;
+        });
+        
+        const filteredFiles = (node.files || []).filter(file =>
+            file.name.toLowerCase().includes(query)
+        );
+        
+        return {
+            ...node,
+            dirs: filteredDirs,
+            files: filteredFiles
+        };
+    },
+
     renderCurrentLevel() {
-        if (!this.treeEl) return;
+        if (!this.contentEl) return;
         const currentNode = this.getCurrentNode();
-        this.treeEl.innerHTML = buildFileCardsHTML(currentNode, this.currentPath);
+        
+        // 如果有搜索查询，应用过滤
+        const displayNode = this.searchQuery ? this.filterNode(currentNode, this.searchQuery) : currentNode;
+        
+        this.contentEl.innerHTML = buildFileCardsHTML(displayNode, this.currentPath);
         this.bindClicks();
     },
 
     bindClicks() {
-        if (!this.treeEl) return;
+        if (!this.contentEl) return;
         
-        // 绑定面包屑导航
-        this.treeEl.querySelectorAll('.breadcrumb-home, .breadcrumb-item').forEach(el => {
-            el.addEventListener('click', (e) => {
-                e.preventDefault();
-                const path = el.getAttribute('data-path');
-                this.currentPath = path ? path.split('/') : [];
-                this.renderCurrentLevel();
-            });
-        });
-
-        // 绑定文件夹点击
-        this.treeEl.querySelectorAll('.local-dir-card').forEach(el => {
+        // 绑定文件夹展开/收起
+        this.contentEl.querySelectorAll('.tree-folder').forEach(el => {
             el.addEventListener('click', (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                const dirName = el.getAttribute('data-dir-name');
-                if (dirName) {
-                    this.currentPath.push(dirName);
+                const dirId = el.getAttribute('data-dir-id');
+                if (dirId) {
+                    if (expandedDirs.has(dirId)) {
+                        expandedDirs.delete(dirId);
+                    } else {
+                        expandedDirs.add(dirId);
+                    }
                     this.renderCurrentLevel();
                 }
             });
         });
 
         // 绑定歌曲文件点击
-        this.treeEl.querySelectorAll('.local-file-card').forEach(el => {
+        this.contentEl.querySelectorAll('.tree-file').forEach(el => {
             el.addEventListener('click', async (e) => {
                 e.preventDefault();
                 e.stopPropagation();

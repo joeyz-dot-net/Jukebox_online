@@ -68,7 +68,13 @@
 </head>
 <body>
 	<script id="boot-data" type="application/json">{{ {'tree': tree, 'musicDir': music_dir}|tojson }}</script>
-	<main id="tree" class="tab-content local-tab bright-theme" aria-label="文件列表"></main>
+	<main id="tree" class="tab-content local-tab bright-theme" aria-label="文件列表">
+		<div class="local-header">
+			<h2 class="local-title">本地歌曲</h2>
+			<input type="text" id="localSearchInput" class="local-search-input" placeholder="搜索歌曲或文件夹...">
+		</div>
+		<div id="localContent" class="local-content"></div>
+	</main>
 	<div id="playlist" class="tab-content playlist-tab" aria-label="播放列表">
 		
 		<div id="youtubeSearchResults" class="youtube-search-results" style="display:none;">
@@ -441,8 +447,7 @@
 	<!-- 排行榜 Modal -->
 	<div id="rankingModal" class="modal" style="display:none;">
 		<div class="modal-content ranking-modal-content">
-			<div class="modal-header">
-				<button class="ranking-modal-close" id="rankingModalClose">✕</button>
+			<div class="modal-header ranking-modal-header">
 				<h2 class="modal-title">播放排行榜</h2>
 			</div>
 			<div class="ranking-tabs">
@@ -564,7 +569,6 @@
 						<select id="themeSetting" class="settings-select">
 							<option value="dark">深色主题</option>
 							<option value="light">浅色主题</option>
-							<option value="auto">自动</option>
 						</select>
 					</div>
 					
@@ -608,12 +612,6 @@
 			
 			<!-- 底部操作栏 -->
 			<div class="settings-footer">
-				<button id="resetSettingsBtn" class="settings-btn settings-btn-reset">
-					🔄 重置为默认
-				</button>
-				<button id="saveSettingsBtn" class="settings-btn settings-btn-save">
-					✓ 保存设置
-				</button>
 			</div>
 		</div>
 	</div>

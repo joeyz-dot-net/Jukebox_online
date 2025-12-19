@@ -27,7 +27,19 @@ body {
 ::-webkit-scrollbar-thumb { background: transparent; }
 
 /* 基础布局 */
-.tab-content, #tree { padding: 16px; padding-bottom: 160px; height: 100vh; overflow-y: auto; }
+.tab-content, #tree { 
+    padding: 16px; 
+    padding-bottom: 160px; 
+    height: 100vh; 
+    overflow-y: auto;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.tab-content.tab-visible, #tree.tab-visible {
+    opacity: 1;
+}
+
 h1 { font-size: 24px; font-weight: 600; margin-bottom: 16px; }
 
 /* 按钮样式 */
@@ -39,6 +51,16 @@ button {
     transition: all 0.2s;
 }
 button:active { transform: scale(0.98); }
+
+/* Modal 过渡动画 */
+.modal, .search-modal {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal.modal-visible, .search-modal.modal-visible {
+    opacity: 1;
+}
 
 /* 标签导航 */
 .tabs-nav { display: flex; border-bottom: 1px solid; transition: all 0.3s ease; }
@@ -53,6 +75,104 @@ button:active { transform: scale(0.98); }
     transition: all 0.2s;
 }
 .tab-btn.active { border-bottom-color: var(--text-primary); }
+
+/* 本地歌曲头部 */
+.local-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px;
+    border-bottom: 1px solid;
+    flex-shrink: 0;
+    gap: 12px;
+}
+
+.local-title {
+    font-size: 20px;
+    font-weight: 600;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.local-search-input {
+    flex: 1;
+    max-width: 400px;
+    padding: 8px 12px;
+    border: 1px solid;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.local-search-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.local-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+/* 本地文件树状结构 */
+.local-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 8px 0;
+}
+
+.tree-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.tree-item:hover {
+    background-color: var(--card-hover-bg);
+}
+
+.tree-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+
+.tree-toggle.expanded {
+    transform: rotate(90deg);
+}
+
+.tree-icon {
+    font-size: 18px;
+    min-width: 20px;
+}
+
+.tree-label {
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tree-folder .tree-label {
+    font-weight: 600;
+}
+
+.tree-file .tree-toggle {
+    opacity: 0;
+    cursor: default;
+}
 
 /* 本地文件卡片 */
 .local-card-grid {
@@ -505,8 +625,21 @@ button:active { transform: scale(0.98); }
     flex: 1;
     overflow-y: auto;
     padding: 16px;
-    padding-bottom: 80px;
     transition: all 0.3s ease;
+}
+
+/* 排行榜 Modal - 不遮挡底部导航栏 */
+#rankingModal {
+    bottom: 64px;
+    max-height: calc(100vh - 64px);
+}
+
+#rankingModal .modal-content {
+    max-height: calc(100vh - 64px);
+}
+
+#rankingModal .ranking-modal-header {
+    justify-content: center;
 }
 
 /* 排行榜标签页 */
@@ -540,8 +673,9 @@ button:active { transform: scale(0.98); }
     top: 0;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: 64px;
     z-index: 999;
+    max-height: calc(100vh - 64px);
 }
 
 .search-modal-overlay {
@@ -1509,6 +1643,23 @@ button:active { transform: scale(0.98); }
 .ranking-number {
     font-size: 20px;
     font-weight: 700;
+}
+
+.ranking-thumbnail {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--card-bg);
+    border: 1px solid;
+    border-color: var(--border-color);
+}
+
+.ranking-thumbnail-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
 }
 
 .ranking-content {

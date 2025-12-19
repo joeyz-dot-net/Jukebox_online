@@ -9,6 +9,15 @@ import { i18n } from './i18n.js';
 export const settingsManager = {
     settings: {},
     schema: {},
+    player: null,  // 用于存储 player 实例引用
+    
+    /**
+     * 设置 player 实例
+     */
+    setPlayer(playerInstance) {
+        this.player = playerInstance;
+        console.log('[设置] player 实例已注册');
+    },
     
     /**
      * 初始化设置管理器
@@ -29,6 +38,14 @@ export const settingsManager = {
             
             // 绑定事件
             this.bindEvents();
+            
+            // 如果推流默认启用，记录到 localStorage
+            if (this.settings.auto_stream === true) {
+                localStorage.setItem('streamActive', 'true');
+                console.log('[设置] 推流已启用（默认值）');
+            } else {
+                localStorage.setItem('streamActive', 'false');
+            }
             
             console.log('✓ 设置管理器已初始化');
         } catch (error) {
@@ -123,10 +140,11 @@ export const settingsManager = {
         // 接收推流开关 - 用户切换时立即保存并启动推流
         const autoStreamCheck = document.getElementById('autoStreamSetting');
         if (autoStreamCheck) {
-            autoStreamCheck.addEventListener('change', (e) => {
-                console.log('[接收推流] 开关已切换:', e.target.checked);
-                
+            autoStreamCheck.addEventListener('change', async (e) => {
                 const isEnabled = e.target.checked;
+                
+                console.log(`%c[推流开关] 用户操作: ${isEnabled ? '✓ 启用' : '✗ 禁用'}`, 
+                    `color: ${isEnabled ? '#4CAF50' : '#FF9800'}; font-weight: bold`);
                 
                 if (isEnabled) {
                     // 启用推流
@@ -143,43 +161,45 @@ export const settingsManager = {
                 
                 // 保存到 localStorage
                 localStorage.setItem('streamActive', isEnabled ? 'true' : 'false');
+                console.log(`[接收推流] localStorage.streamActive = ${isEnabled ? 'true' : 'false'}`);
                 
                 // 发送到服务器保存
+                console.log('[接收推流] 发送请求到服务器...');
                 fetch('/settings/auto_stream', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ value: isEnabled })
                 }).then(res => res.json())
-                  .then(result => {
+                  .then(async (result) => {
                     if (result.status === 'OK') {
-                        console.log('[接收推流] 设置已保存');
+                        console.log('%c[接收推流] 设置已保存到服务器 ✓', 'color: #4CAF50; font-weight: bold');
                         
                         if (isEnabled) {
                             // 启用推流的提示
                             this.showNotification('✓ 注册成功！推流已启用', 'success');
                             
-                            console.log('[接收推流] 检查是否有正在播放的歌曲...');
+                            console.log('%c[接收推流] 准备启动推流...', 'color: #2196F3; font-weight: bold');
                             
-                            // 检查是否有歌曲正在播放
-                            const player = window.app && window.app.player;
-                            if (player && player.currentPlayingUrl) {
-                                console.log('[接收推流] ✓ 检测到正在播放的歌曲:', player.currentPlayingUrl);
-                                console.log('[接收推流] 立即启动推流...');
-                                
-                                const streamFormat = localStorage.getItem('streamFormat') || 'mp3';
-                                const streamVolume = this.settings.stream_volume || 50;
-                                
-                                // 显示推流启动中的提示
-                                this.showNotification(
-                                    `📻 开始播放推流 (${streamFormat.toUpperCase()}, ${streamVolume}%)...`,
-                                    'info'
-                                );
-                                
-                                // 启动推流
-                                this.playStreamAudio(streamFormat, streamVolume / 100);
+                            const streamFormat = localStorage.getItem('streamFormat') || 'mp3';
+                            const streamVolume = this.settings.stream_volume || 50;
+                            
+                            console.log(`[接收推流] 推流参数: 格式=${streamFormat}, 音量=${streamVolume}%`);
+                            
+                            // 显示推流启动中的提示
+                            this.showNotification(
+                                `📻 开始接收推流 (${streamFormat.toUpperCase()}, ${streamVolume}%)...`,
+                                'info'
+                            );
+                            
+                            // 使用 player.startBrowserStream() 以获得完整的 Safari 优化
+                            if (this.player && this.player.startBrowserStream) {
+                                console.log('%c[接收推流] 调用 player.startBrowserStream() 启动推流', 'color: #2196F3; font-weight: bold; font-size: 12px');
+                                await this.player.startBrowserStream(streamFormat);
+                                console.log('%c[接收推流] player.startBrowserStream() 返回', 'color: #4CAF50; font-size: 12px');
                             } else {
-                                console.log('[接收推流] ⓘ 暂无正在播放的歌曲，后续播放时自动启动推流');
-                                this.showNotification('⏳ 推流已就绪，播放歌曲时自动启动', 'info');
+                                // 备用方案：如果 player 不可用，使用基础推流方法
+                                console.warn('%c[接收推流] player 实例不可用，使用备用推流方法', 'color: #FF9800; font-weight: bold');
+                                this.playStreamAudio(streamFormat, streamVolume / 100);
                             }
                         } else {
                             // 禁用推流的处理
@@ -214,22 +234,6 @@ export const settingsManager = {
             langSelect.addEventListener('change', (e) => {
                 this.applyLanguage(e.target.value);
             });
-        }
-        
-        // 保存按钮
-        const saveBtn = document.getElementById('saveSettingsBtn');
-        if (saveBtn) {
-            saveBtn.addEventListener('click', () => this.saveSettings());
-        }
-        
-        // 重置按钮
-        const resetBtn = document.getElementById('resetSettingsBtn');
-        console.log('[DEBUG] resetBtn element:', resetBtn);
-        if (resetBtn) {
-            console.log('[DEBUG] 绑定重置按钮事件...');
-            resetBtn.addEventListener('click', () => this.resetSettings());
-        } else {
-            console.error('[DEBUG] 未找到 resetBtn 元素!');
         }
         
         // 关闭按钮
@@ -381,13 +385,6 @@ export const settingsManager = {
         // 更新推流音量标签
         const volumeLabel = document.querySelectorAll('.settings-label')[3];
         if (volumeLabel) volumeLabel.textContent = i18n.t('settings.streamVolume', language);
-        
-        // 更新按钮文本
-        const resetBtn = document.getElementById('resetSettingsBtn');
-        if (resetBtn) resetBtn.textContent = i18n.t('settings.reset', language);
-        
-        const saveBtn = document.getElementById('saveSettingsBtn');
-        if (saveBtn) saveBtn.textContent = i18n.t('settings.save', language);
     },
     
     /**

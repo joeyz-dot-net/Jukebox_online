@@ -26,6 +26,14 @@ class MusicPlayerApp {
         this.initialized = false;
         this.currentPlaylistId = 'default';  // 跟踪当前选择的歌单ID
         this._autoNextTriggered = false;  // 自动播放下一首的标记
+        this.lastPlayStatus = null;  // 追踪上一次的播放状态，用于检测播放停止
+        this.isRestoringStream = false;  // 标记是否正在恢复流，避免竞态
+        
+        // 状态追踪变量 - 用于只在改变时输出日志
+        this.lastLoopMode = null;  // 循环模式
+        this.lastVolume = null;    // 音量
+        this.lastPlaybackStatus = null;  // 播放状态
+        this.lastUILoopMode = null;  // UI更新中的循环模式跟踪，防止重复日志
     }
 
     async init() {
@@ -34,10 +42,29 @@ class MusicPlayerApp {
         console.log('🎵 初始化音乐播放器...');
         
         try {
+            // 0. 保护浏览器音频元素，防止非法 URL 被设置
+            this.protectBrowserStreamAudio();
+            
+            // 0.1 清理旧的 localStorage 数据（迁移支持）
+            try {
+                const savedStreamState = localStorage.getItem('currentStreamState');
+                if (savedStreamState) {
+                    const streamState = JSON.parse(savedStreamState);
+                    // 如果有旧的 url 或 title 字段，说明是旧格式，清理掉
+                    if (streamState.url || streamState.title) {
+                        console.log('[初始化] 检测到旧的推流状态格式，清理...');
+                        localStorage.removeItem('currentStreamState');
+                        localStorage.setItem('streamActive', 'false');
+                    }
+                }
+            } catch (err) {
+                console.warn('[初始化] 清理旧数据失败:', err);
+            }
+            
             // 0.1 初始化多语言系统
             i18n.init();
             
-            // 0. 从后端获取推流配置
+            // 0.2 从后端获取推流配置
             try {
                 const configResp = await fetch('/config/stream');
                 const configData = await configResp.json();
@@ -103,6 +130,8 @@ class MusicPlayerApp {
             
             // 7.6 初始化设置管理器
             await settingsManager.init();
+            // 注册 player 实例到 settingsManager，以便推流开关使用正确的启动方法
+            settingsManager.setPlayer(player);
             this.bindSettingsButton();
             
             // 7.7 初始化导航栏
@@ -191,15 +220,104 @@ class MusicPlayerApp {
         };
     }
 
+    // 保护浏览器音频元素，防止非法 URL 被设置
+    protectBrowserStreamAudio() {
+        const audioElement = document.getElementById('browserStreamAudio');
+        if (!audioElement) return;
+
+        // 保存原始的 src setter
+        const descriptor = Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'src');
+        const originalSetter = descriptor?.set;
+
+        if (originalSetter) {
+            // 覆盖 src 属性的 setter
+            Object.defineProperty(audioElement, 'src', {
+                get() {
+                    return this._src || '';
+                },
+                set(value) {
+                    // 只允许设置 /stream/play 开头的 URL 或空字符串
+                    if (!value || value.includes('/stream/play') || value === '') {
+                        this._src = value;
+                        // 调用原始 setter
+                        if (originalSetter) {
+                            originalSetter.call(this, value);
+                        }
+                        console.log('[音频保护] ✓ 允许设置 src:', value || '(清空)');
+                    } else {
+                        console.warn('[音频保护] ❌ 拒绝非法 src:', value);
+                        // 不设置非法 URL，直接返回
+                        return;
+                    }
+                },
+                configurable: true
+            });
+        }
+    }
+
     // 初始化播放器
     initPlayer() {
         // 监听播放状态更新
         player.on('statusUpdate', ({ status }) => {
             // 更新当前歌单ID
             if (status && status.current_playlist_id) {
-                this.currentPlaylistId = status.current_playlist_id;
-                console.log('📂 当前歌单已切换:', this.currentPlaylistId);
+                if (this.currentPlaylistId !== status.current_playlist_id) {
+                    this.currentPlaylistId = status.current_playlist_id;
+                    console.log('📂 当前歌单已切换:', this.currentPlaylistId);
+                } else {
+                    this.currentPlaylistId = status.current_playlist_id;
+                }
             }
+            
+            // ✅ 只在循环模式改变时输出日志
+            if (status && status.loop_mode !== this.lastLoopMode) {
+                const loopModes = {
+                    0: '❌ 不循环',
+                    1: '🔂 单曲循环',
+                    2: '🔁 全部循环'
+                };
+                console.log(`%c[播放器] 循环模式改变: ${loopModes[this.lastLoopMode] || '?'} → ${loopModes[status.loop_mode] || '?'}`, 
+                    'color: #2196F3; font-weight: bold');
+                this.lastLoopMode = status.loop_mode;
+            }
+            
+            // ✅ 只在播放状态改变时输出日志
+            if (status && status.paused !== this.lastPlaybackStatus) {
+                const statusText = status.paused ? '⏸️ 已暂停' : '▶️ 正在播放';
+                console.log(`%c[播放器] ${statusText}`, 
+                    `color: ${status.paused ? '#FF9800' : '#4CAF50'}; font-weight: bold`);
+                this.lastPlaybackStatus = status.paused;
+            }
+            
+            // ✅ 只在音量改变时输出日志（避免频繁输出）
+            if (status && status.volume !== null && status.volume !== undefined && !isNaN(status.volume)) {
+                const roundedVolume = Math.round(status.volume);
+                if (roundedVolume !== Math.round(this.lastVolume || 0)) {
+                    console.log(`%c[播放器] 🔊 音量: ${roundedVolume}%`, 
+                        'color: #FF9800; font-weight: bold');
+                    this.lastVolume = status.volume;
+                }
+            }
+            
+            // [新增] 检测播放停止（本地文件播放完毕）
+            if (this.lastPlayStatus && !this.lastPlayStatus.paused && status && status.paused) {
+                // 从播放状态变为暂停状态
+                const currentTime = status.time_pos || 0;
+                const duration = status.duration || 0;
+                
+                // 判断是自然播放结束（时间接近结尾）还是被用户暂停
+                if (duration > 0 && currentTime >= duration - 2) {
+                    // 自然播放结束（在最后2秒内）
+                    const title = status.current_meta?.title || status.current_meta?.name || '歌曲';
+                    Toast.info(`${title} 已播放完毕`);
+                    console.log('[播放] 当前音乐已停止');
+                } else {
+                    // 被用户暂停
+                    Toast.info('播放已暂停');
+                }
+            }
+            
+            this.lastPlayStatus = status;
             this.updatePlayerUI(status);
             // 更新播放列表显示（以反映当前播放状态）
             this.renderPlaylist();
@@ -213,6 +331,19 @@ class MusicPlayerApp {
         // 监听暂停事件
         player.on('pause', () => {
             console.log('播放已暂停');
+        });
+
+        // 监听推流相关事件
+        player.on('stream:paused', () => {
+            Toast.info('推流已暂停');
+        });
+
+        player.on('stream:ended', () => {
+            Toast.info('当前音乐已停止');
+        });
+
+        player.on('stream:error', ({ errorMsg }) => {
+            Toast.error(`推流错误: ${errorMsg || '未知错误'}`);
         });
 
         // 监听循环模式变化
@@ -232,6 +363,12 @@ class MusicPlayerApp {
         // 循环模式: 0=不循环, 1=单曲循环, 2=全部循环
         const loopModeText = ['不循环', '单曲循环', '全部循环'];
         const loopModeEmoji = ['↻', '🔂', '🔁'];
+        
+        // 只在循环模式实际改变时输出日志
+        if (loopMode !== this.lastUILoopMode) {
+            console.log('[循环模式] 已更新至:', loopModeText[loopMode]);
+            this.lastUILoopMode = loopMode;
+        }
         
         buttons.forEach(btn => {
             if (btn) {
@@ -260,8 +397,6 @@ class MusicPlayerApp {
                 btn.title = `循环模式: ${loopModeText[loopMode]}`;
             }
         });
-        
-        console.log('[循环模式] 已更新至:', loopModeText[loopMode]);
     }
 
     // 初始化音量控制
@@ -283,8 +418,27 @@ class MusicPlayerApp {
     bindSettingsButton() {
         /**绑定导航栏设置按钮*/
         const settingsBtn = document.getElementById('settingsNavBtn');
+        const navItems = document.querySelectorAll('.nav-item');
+        
         if (settingsBtn) {
             settingsBtn.addEventListener('click', () => {
+                // 更新导航按钮状态
+                navItems.forEach(navItem => navItem.classList.remove('active'));
+                settingsBtn.classList.add('active');
+                
+                // 隐藏所有标签页面内容
+                const tabContents = {
+                    'playlists': this.elements.playlist,
+                    'local': this.elements.tree,
+                    'ranking': document.getElementById('rankingModal'),
+                    'search': document.getElementById('searchModal')
+                };
+                
+                Object.values(tabContents).forEach(tab => {
+                    if (tab) tab.style.display = 'none';
+                });
+                
+                // 打开设置面板
                 settingsManager.openPanel();
             });
         }
@@ -299,14 +453,30 @@ class MusicPlayerApp {
     // [快速恢复] 页面刷新后立即恢复流连接（不等待其他初始化）
     fastRestoreStream() {
         try {
+            console.log('%c[流恢复] 开始检查流状态...', 'color: #2196F3; font-weight: bold');
+            
             const savedStreamState = localStorage.getItem('currentStreamState');
-            if (!savedStreamState) return;
+            if (!savedStreamState) {
+                console.log('[流恢复] 没有保存的流状态');
+                return;
+            }
+            
+            // 检查推流是否被启用
+            const streamActive = localStorage.getItem('streamActive') === 'true';
+            console.log(`[流恢复] streamActive: ${streamActive}`);
+            if (!streamActive) {
+                console.log('[流恢复] 推流未被启用，跳过恢复');
+                return;
+            }
             
             const streamState = JSON.parse(savedStreamState);
+            console.log('[流恢复] 保存的流状态:', streamState);
             
             // 检查状态是否仍然有效（30秒内）
-            if (Date.now() - streamState.timestamp > 30 * 1000) {
-                console.log('[快速恢复] 流状态已过期，跳过恢复');
+            const age = Date.now() - streamState.timestamp;
+            console.log(`[流恢复] 流状态年龄: ${Math.round(age / 1000)}秒`);
+            if (age > 30 * 1000) {
+                console.log('[流恢复] 流状态已过期（超过30秒），跳过恢复');
                 localStorage.removeItem('currentStreamState');
                 return;
             }
@@ -314,28 +484,68 @@ class MusicPlayerApp {
             // 检查音频元素是否存在
             const audioElement = document.getElementById('browserStreamAudio');
             if (!audioElement) {
-                console.warn('[快速恢复] 音频元素不存在，跳过恢复');
+                console.warn('[流恢复] 音频元素不存在，跳过恢复');
                 return;
             }
             
+            console.log('[流恢复] ✓ 音频元素存在');
+            
+            // 标记正在恢复流
+            this.isRestoringStream = true;
+            
+            // 检测浏览器类型
+            const userAgent = navigator.userAgent;
+            const isSafari = /^((?!chrome|android).)*safari/i.test(userAgent);
+            const isEdge = /edg/i.test(userAgent);
+            
+            console.log(`%c[流恢复] 浏览器检测: Safari=${isSafari}, Edge=${isEdge}`, 'color: #FF9800');
+            
             // 立即尝试恢复流
-            console.log('[快速恢复] 检测到之前的活跃流，立即恢复:', {
-                title: streamState.title,
-                format: streamState.format,
-                age: Math.round((Date.now() - streamState.timestamp) / 1000) + 's'
-            });
+            console.log('%c[流恢复] 准备恢复流连接...', 'color: #4CAF50; font-weight: bold');
             
             // 使用异步处理以避免阻塞初始化
-            Promise.resolve().then(() => {
+            Promise.resolve().then(async () => {
+                console.log('[流恢复] 进入异步恢复流程...');
+                
+                // Safari 和 Edge 特殊处理：延迟以确保新音频元素已准备好
+                if (isSafari || isEdge) {
+                    console.log(`[流恢复] 应用 ${isSafari ? 'Safari' : 'Edge'} 延迟处理（200ms）`);
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+                
+                // 确保 player 对象存在
+                if (!window.app || !window.app.player) {
+                    console.error('[流恢复] ❌ player 对象不存在，无法恢复流');
+                    return;
+                }
+                
                 const streamFormat = streamState.format || 'mp3';
-                player.startBrowserStream(streamFormat);
-                console.log('[快速恢复] ✓ 流恢复命令已发送');
+                console.log(`%c[流恢复] 调用 player.startBrowserStream('${streamFormat}')`, 'color: #2196F3; font-weight: bold');
+                
+                try {
+                    await player.startBrowserStream(streamFormat);
+                    console.log('%c[流恢复] ✓ 流恢复成功！', 'color: #4CAF50; font-weight: bold');
+                } catch (err) {
+                    console.error('[流恢复] ❌ startBrowserStream 执行出错:', err);
+                }
+                
+                // Safari 和 Edge 特殊处理：标记为活跃，防止重复连接
+                if (isSafari || isEdge) {
+                    localStorage.setItem('streamActive', 'true');
+                }
             }).catch(err => {
-                console.error('[快速恢复] 恢复失败:', err);
+                console.error('[流恢复] ❌ 恢复失败:', err);
+            }).finally(() => {
+                // 恢复完成后取消标记
+                setTimeout(() => {
+                    this.isRestoringStream = false;
+                    console.log('[流恢复] 恢复标记已清除');
+                }, 1000);
             });
             
         } catch (error) {
-            console.warn('[快速恢复] 解析流状态失败:', error);
+            console.error('[流恢复] ❌ 解析流状态失败:', error);
+            this.isRestoringStream = false;
         }
     }
 
@@ -360,8 +570,6 @@ class MusicPlayerApp {
                     // 检查保存的状态是否仍然有效（5分钟内）
                     if (Date.now() - streamState.timestamp < 5 * 60 * 1000) {
                         console.log('[恢复状态] 检测到活跃的直播流，准备恢复:', {
-                            url: streamState.url,
-                            title: streamState.title,
                             format: streamState.format
                         });
                         
@@ -427,8 +635,8 @@ class MusicPlayerApp {
             // （即使暂停了，也可能需要恢复）
             if (audioElement && audioElement.src) {
                 const streamState = {
-                    url: player.currentPlayingUrl || 'stream',
-                    title: document.getElementById('playerTitle')?.textContent || 'Unknown',
+                    // 注意：不保存 currentPlayingUrl，因为推流是从虚拟音频设备录制的，
+                    // 与当前播放的歌曲无关。只保存流的状态信息
                     format: localStorage.getItem('streamFormat') || 'mp3',
                     playlistId: this.currentPlaylistId || 'default',
                     timestamp: Date.now(),
@@ -452,38 +660,62 @@ class MusicPlayerApp {
         document.addEventListener('visibilitychange', async () => {
             // 页面从隐藏变为可见时（页面被激活/刷新后焦点返回）
             if (!document.hidden) {
-                console.log('[可见性] 页面已重新激活，尝试恢复推流...');
+                console.log('%c[可见性] 页面已重新激活，检查推流状态...', 'color: #2196F3; font-weight: bold');
                 
                 // 延迟200ms确保DOM完全渲染
                 setTimeout(async () => {
-                    const savedStreamState = localStorage.getItem('currentStreamState');
-                    if (savedStreamState) {
-                        try {
-                            const streamState = JSON.parse(savedStreamState);
-                            
-                            // 检查流状态是否仍然有效（30秒内）
-                            if (Date.now() - streamState.timestamp < 30 * 1000) {
-                                const audioElement = document.getElementById('browserStreamAudio');
-                                
-                                // 如果流已断开，立即恢复
-                                if (!audioElement || !audioElement.src || audioElement.paused) {
-                                    console.log('[可见性] 直播流已断开，立即恢复:', streamState.title);
-                                    
-                                    const streamFormat = streamState.format || 'mp3';
-                                    player.startBrowserStream(streamFormat);
-                                    
-                                    console.log('[可见性] ✓ 推流已恢复');
-                                } else {
-                                    console.log('[可见性] 推流仍在运行，无需恢复');
-                                }
-                            } else {
-                                // 状态过期
-                                console.log('[可见性] 保存的流状态已过期，清除');
-                                localStorage.removeItem('currentStreamState');
-                            }
-                        } catch (err) {
-                            console.error('[可见性] 恢复流失败:', err);
+                    try {
+                        const streamActive = localStorage.getItem('streamActive') === 'true';
+                        console.log(`[可见性] streamActive: ${streamActive}`);
+                        
+                        if (!streamActive) {
+                            console.log('[可见性] 推流未启用，跳过恢复');
+                            return;
                         }
+                        
+                        const savedStreamState = localStorage.getItem('currentStreamState');
+                        if (!savedStreamState) {
+                            console.log('[可见性] 没有保存的流状态');
+                            return;
+                        }
+                        
+                        const streamState = JSON.parse(savedStreamState);
+                        console.log('[可见性] 检查到保存的流状态:', streamState);
+                        
+                        // 检查流状态是否仍然有效（30秒内）
+                        const age = Date.now() - streamState.timestamp;
+                        if (age > 30 * 1000) {
+                            console.log(`[可见性] 流状态已过期 (${Math.round(age / 1000)}秒)，清除`);
+                            localStorage.removeItem('currentStreamState');
+                            return;
+                        }
+                        
+                        const audioElement = document.getElementById('browserStreamAudio');
+                        const isStreamActive = audioElement && audioElement.src && !audioElement.paused;
+                        const elementStatus = audioElement 
+                            ? `src=${audioElement.src ? '✓' : '✗'}, paused=${audioElement.paused}, readyState=${audioElement.readyState}`
+                            : 'element not found';
+                        
+                        console.log(`[可见性] 音频元素状态: ${elementStatus}`);
+                        
+                        // 如果流已断开，立即恢复
+                        if (!isStreamActive) {
+                            console.log('%c[可见性] 推流已断开，准备恢复...', 'color: #FF9800');
+                            
+                            const streamFormat = streamState.format || 'mp3';
+                            
+                            if (player && player.startBrowserStream) {
+                                console.log(`[可见性] 调用 player.startBrowserStream('${streamFormat}')`);
+                                await player.startBrowserStream(streamFormat);
+                                console.log('%c[可见性] ✓ 推流已恢复', 'color: #4CAF50; font-weight: bold');
+                            } else {
+                                console.error('[可见性] ❌ player 不可用');
+                            }
+                        } else {
+                            console.log('[可见性] 推流仍在运行，无需恢复');
+                        }
+                    } catch (err) {
+                        console.error('[可见性] 恢复流失败:', err);
                     }
                 }, 200);
             }
@@ -763,15 +995,12 @@ class MusicPlayerApp {
         // 更新全屏播放器标题和艺术家
         if (this.elements.fullPlayerTitle) {
             this.elements.fullPlayerTitle.textContent = title;
-            console.log('[完整播放器] 更新标题:', title);
         }
         if (this.elements.fullPlayerArtist) {
             this.elements.fullPlayerArtist.textContent = artist;
-            console.log('[完整播放器] 更新艺术家:', artist);
         }
         if (this.elements.fullPlayerPlaylist) {
             this.elements.fullPlayerPlaylist.textContent = playlistName;
-            console.log('[完整播放器] 更新歌单:', playlistName);
         }
 
         // 更新进度信息（支持两种字段名）
@@ -985,7 +1214,6 @@ class MusicPlayerApp {
             if (playlistsModal) {
                 playlistsModal.classList.add('dark-theme');
             }
-            console.log('🎵 歌单为空，应用深色主题');
             return;
         }
         
@@ -1002,7 +1230,6 @@ class MusicPlayerApp {
         if (playlistsModal) {
             playlistsModal.classList.add(theme);
         }
-        console.log(`🎵 歌单主题已应用: ${theme}, 包含YouTube: ${hasYoutube}, 歌曲数: ${playlist.length}`);
     }
 
     // 渲染播放列表
@@ -1020,12 +1247,28 @@ class MusicPlayerApp {
     }
     // 停止推流（用于切换歌曲时的清理）
     stopBrowserStream() {
+        // 如果正在恢复流，不要停止它
+        if (this.isRestoringStream) {
+            console.log('[停止推流] 正在恢复流，跳过停止操作');
+            return;
+        }
+        
         const audioElement = document.getElementById('browserStreamAudio');
         if (audioElement && !audioElement.paused) {
-            audioElement.pause();
-            audioElement.currentTime = 0;
-            audioElement.src = '';
-            console.log('[推流] 已停止推流');
+            try {
+                // 使用更安全的方式停止
+                audioElement.pause();
+                audioElement.currentTime = 0;
+                audioElement.src = '';
+                audioElement.load();
+                
+                // 标记推流已停止
+                localStorage.setItem('streamActive', 'false');
+                
+                console.log('[推流] 已停止推流');
+            } catch (err) {
+                console.warn('[推流] 停止推流失败:', err);
+            }
         }
     }
 
@@ -1134,40 +1377,107 @@ class MusicPlayerApp {
 
         // 跟踪当前显示的标签页
         let currentTab = 'playlists';
+        let previousTab = 'playlists';  // 记录上一个标签页，用于设置关闭时恢复
+        const hideAllContent = () => {
+            return new Promise(resolve => {
+                navItems.forEach(navItem => navItem.classList.remove('active'));
+                Object.values(tabContents).forEach(tab => {
+                    if (tab) {
+                        tab.classList.remove('tab-visible');
+                    }
+                });
+                setTimeout(() => {
+                    Object.values(tabContents).forEach(tab => {
+                        if (tab) tab.style.display = 'none';
+                    });
+                    resolve();
+                }, 300);
+            });
+        };
+
+        const showContent = (tab, tabName) => {
+            if (tab) {
+                tab.style.display = tab === this.elements.playlist ? 'flex' : 'block';
+                setTimeout(() => {
+                    if (tab) tab.classList.add('tab-visible');
+                }, 10);
+            }
+        };
 
         navItems.forEach((item, index) => {
             const tabName = item.getAttribute('data-tab');
             console.log(`📌 导航项${index}: data-tab="${tabName}"`);
             
-            item.addEventListener('click', (e) => {
-                console.log('🖱️ 点击导航项:', tabName);
+            item.addEventListener('click', async (e) => {
+                console.log('🖱️ 点击导航项:', tabName, '当前:', currentTab);
                 
                 // 关闭全屏播放器（如果打开）
                 if (this.elements.fullPlayer && this.elements.fullPlayer.style.display !== 'none') {
                     this.elements.fullPlayer.style.display = 'none';
-                    // 显示迷你播放器
                     if (this.elements.miniPlayer) {
                         this.elements.miniPlayer.style.display = 'block';
                     }
                     console.log('🔽 关闭全屏播放器，显示迷你播放器');
                 }
                 
-                // 队列按钮：显示默认歌单
+                // 如果点击相同的标签，则收起；否则显示该标签
+                if (currentTab === tabName && item.classList.contains('active')) {
+                    console.log('📁 收起', tabName);
+                    await hideAllContent();
+                    // 隐藏所有模态框
+                    const rankingModal = document.getElementById('rankingModal');
+                    const searchModal = document.getElementById('searchModal');
+                    const playlistsModal = document.getElementById('playlistsModal');
+                    if (rankingModal) {
+                        rankingModal.classList.remove('modal-visible');
+                        setTimeout(() => {
+                            if (rankingModal) rankingModal.style.display = 'none';
+                        }, 300);
+                    }
+                    if (searchModal) {
+                        searchModal.classList.remove('modal-visible');
+                        setTimeout(() => {
+                            if (searchModal) searchModal.style.display = 'none';
+                        }, 300);
+                    }
+                    if (playlistsModal) {
+                        playlistsModal.classList.remove('modal-visible');
+                        setTimeout(() => {
+                            if (playlistsModal) playlistsModal.style.display = 'none';
+                        }, 300);
+                    }
+                    currentTab = null;
+                    return;
+                }
+                
+                console.log('📋 显示', tabName);
+                previousTab = currentTab;  // 保存上一个标签页
+                await hideAllContent();
+                
+                // 隐藏所有模态框
+                const rankingModal = document.getElementById('rankingModal');
+                const searchModal = document.getElementById('searchModal');
+                const playlistsModal = document.getElementById('playlistsModal');
+                if (rankingModal) {
+                    rankingModal.classList.remove('modal-visible');
+                    rankingModal.style.display = 'none';
+                }
+                if (searchModal) {
+                    searchModal.classList.remove('modal-visible');
+                    searchModal.style.display = 'none';
+                }
+                if (playlistsModal) {
+                    playlistsModal.classList.remove('modal-visible');
+                    playlistsModal.style.display = 'none';
+                }
+                
+                // 更新导航按钮状态
+                item.classList.add('active');
+                
+                // 队列按钮
                 if (tabName === 'playlists') {
-                    console.log('📋 显示默认歌单');
-                    // 更新导航按钮状态
-                    navItems.forEach(navItem => navItem.classList.remove('active'));
-                    item.classList.add('active');
-                    
-                    // 隐藏所有标签内容
-                    Object.values(tabContents).forEach(tab => {
-                        if (tab) tab.style.display = 'none';
-                    });
-                    
-                    // 切换到默认歌单并显示
                     if (this.elements.playlist) {
-                        this.elements.playlist.style.display = 'flex';
-                        // 先切换到默认歌单，再渲染
+                        showContent(this.elements.playlist, tabName);
                         playlistManager.switch('default').then(() => {
                             this.currentPlaylistId = 'default';
                             this.renderPlaylist();
@@ -1176,53 +1486,116 @@ class MusicPlayerApp {
                             this.renderPlaylist();
                         });
                     }
-                    currentTab = 'playlists';
-                    return;
+                } 
+                // 本地文件
+                else if (tabName === 'local') {
+                    if (this.elements.tree) {
+                        showContent(this.elements.tree, tabName);
+                    }
                 }
-                
-                if (tabName === 'ranking') {
-                    const rankingModal = document.getElementById('rankingModal');
+                // 排行榜
+                else if (tabName === 'ranking') {
                     if (rankingModal) {
                         rankingModal.style.display = 'block';
-                        // 这里可以触发加载排行榜数据
+                        setTimeout(() => {
+                            if (rankingModal) rankingModal.classList.add('modal-visible');
+                        }, 10);
                     }
-                    return;
                 }
-                
-                if (tabName === 'search') {
-                    const searchModal = document.getElementById('searchModal');
+                // 搜索
+                else if (tabName === 'search') {
                     if (searchModal) {
                         searchModal.style.display = 'block';
+                        setTimeout(() => {
+                            if (searchModal) searchModal.classList.add('modal-visible');
+                        }, 10);
+                    }
+                    setTimeout(() => {
                         const searchInput = document.getElementById('searchModalInput');
                         if (searchInput) {
                             searchInput.focus();
                         }
-                    }
-                    return;
+                    }, 310);
                 }
                 
-                // 本地标签的切换逻辑：点击已显示的本地按钮会收起，再次点击会展开
-                if (tabName === 'local') {
-                    const localButton = item;
-                    if (currentTab === 'local') {
-                        // 已显示本地，点击则收起（回到歌单）
-                        console.log('📁 收起本地歌曲，返回歌单');
-                        this.switchTab('playlists', navItems[0], navItems, tabContents);
-                        currentTab = 'playlists';
-                    } else {
-                        // 未显示本地，点击则展开
-                        console.log('📁 展开本地歌曲');
-                        this.switchTab(tabName, localButton, navItems, tabContents);
-                        currentTab = 'local';
-                    }
-                    return;
-                }
-                
-                // 常规标签切换（目前只有本地文件）
-                this.switchTab(tabName, e.currentTarget, navItems, tabContents);
                 currentTab = tabName;
             });
         });
+        
+        // 设置按钮点击处理
+        const settingsBtn = document.getElementById('settingsNavBtn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', async () => {
+                console.log('⚙️ 点击设置按钮，当前栏目:', currentTab);
+                previousTab = currentTab;  // 保存当前栏目
+                await hideAllContent();
+                
+                // 隐藏所有模态框
+                const rankingModal = document.getElementById('rankingModal');
+                const searchModal = document.getElementById('searchModal');
+                const playlistsModal = document.getElementById('playlistsModal');
+                if (rankingModal) {
+                    rankingModal.classList.remove('modal-visible');
+                    rankingModal.style.display = 'none';
+                }
+                if (searchModal) {
+                    searchModal.classList.remove('modal-visible');
+                    searchModal.style.display = 'none';
+                }
+                if (playlistsModal) {
+                    playlistsModal.classList.remove('modal-visible');
+                    playlistsModal.style.display = 'none';
+                }
+                
+                settingsBtn.classList.add('active');
+                settingsManager.openPanel();
+                currentTab = 'settings';
+            });
+        }
+        
+        // 修改设置管理器的关闭方法，添加恢复逻辑
+        const originalClosePanel = settingsManager.closePanel;
+        settingsManager.closePanel = async function() {
+            originalClosePanel.call(this);
+            
+            console.log('⚙️ 设置关闭，恢复栏目:', previousTab);
+            
+            // 移除设置按钮的active状态
+            if (settingsBtn) settingsBtn.classList.remove('active');
+            
+            // 恢复之前的栏目
+            if (previousTab && previousTab !== 'settings') {
+                // 找到对应的导航按钮并触发点击
+                const targetNavItem = Array.from(navItems).find(item => 
+                    item.getAttribute('data-tab') === previousTab
+                );
+                
+                if (targetNavItem) {
+                    console.log('📌 恢复到栏目:', previousTab);
+                    targetNavItem.click();
+                }
+            }
+        };
+        
+        // 初始化时显示"队列"模块
+        const firstNavItem = navItems[0];
+        if (firstNavItem) {
+            firstNavItem.classList.add('active');
+            const playlistsContent = this.elements.playlist;
+            if (playlistsContent) {
+                playlistsContent.style.display = 'flex';
+                setTimeout(() => {
+                    if (playlistsContent) playlistsContent.classList.add('tab-visible');
+                }, 10);
+            }
+            playlistManager.switch('default').then(() => {
+                this.currentPlaylistId = 'default';
+                this.renderPlaylist();
+            }).catch(err => {
+                console.error('初始化队列失败:', err);
+                this.renderPlaylist();
+            });
+        }
         
         // 绑定模态框关闭事件
         this.setupModalClosing();
@@ -1294,15 +1667,9 @@ class MusicPlayerApp {
 
     // 设置模态框关闭事件
     setupModalClosing() {
-        // 排行榜模态框关闭
-        const rankingModalClose = document.getElementById('rankingModalClose');
+        // 排行榜模态框关闭 - 支持点击背景关闭
         const rankingModal = document.getElementById('rankingModal');
-        if (rankingModalClose && rankingModal) {
-            rankingModalClose.addEventListener('click', () => {
-                rankingModal.style.display = 'none';
-            });
-            
-            // 点击背景关闭
+        if (rankingModal) {
             rankingModal.addEventListener('click', (e) => {
                 if (e.target === rankingModal) {
                     rankingModal.style.display = 'none';
@@ -1338,13 +1705,41 @@ const app = new MusicPlayerApp();
 
 // 页面卸载时的清理逻辑（处理页面刷新/关闭时的stream断开）
 window.addEventListener('beforeunload', () => {
+    console.log('%c[页面卸载] 保存推流状态...', 'color: #FF9800; font-weight: bold');
+    
     // 保存当前的推流状态（供刷新后恢复）
     // 即使流已断开，仍然保存最后的状态，以便恢复时快速重连
-    app.saveStreamState();
     
-    // 注意：不要在这里调用 stopPolling 或断开连接
-    // 原因：beforeunload 是异步的，浏览器会自动断开所有连接
-    // 我们的工作是保存状态，让后端和前端在恢复时处理重连
+    // 检查推流是否被启用
+    const streamActive = localStorage.getItem('streamActive') === 'true';
+    console.log(`[页面卸载] streamActive: ${streamActive}`);
+    
+    if (streamActive) {
+        // 获取当前推流状态
+        const audioElement = document.getElementById('browserStreamAudio');
+        const isPlaying = audioElement && !audioElement.paused;
+        const streamFormat = localStorage.getItem('streamFormat') || 'mp3';
+        
+        // 保存详细状态供恢复
+        const streamState = {
+            format: streamFormat,
+            isPlaying: isPlaying,
+            timestamp: Date.now(),
+            userAgent: navigator.userAgent.substring(0, 100)
+        };
+        
+        localStorage.setItem('currentStreamState', JSON.stringify(streamState));
+        localStorage.setItem('streamActive', 'true');
+        
+        console.log('[页面卸载] ✓ 推流状态已保存:', streamState);
+    } else {
+        console.log('[页面卸载] 推流未启用，清除保存的流状态');
+        localStorage.removeItem('currentStreamState');
+    }
+    
+    // 注意：不要在这里调用 stopBrowserStream() 或断开连接
+    // 让浏览器自然断开，Safari 会自动清理音频连接
+    // 我们的工作只是保存状态，让后续恢复时重新连接
 });
 
 // DOM 加载完成后初始化
@@ -1370,8 +1765,21 @@ window.app = {
         themeManager,
         settingsManager,
         navManager
+    },
+    // 诊断工具
+    diagnose: {
+        stream: () => player.diagnoseStream(),  // 推流诊断
+        printHelp: () => {
+            console.log('%c🔧 可用诊断命令', 'color: #FF9800; font-size: 14px; font-weight: bold');
+            console.log('  • app.diagnose.stream()     - 打印推流诊断信息');
+            console.log('  • player.startBrowserStream() - 手动启动推流');
+            console.log('  • player.stopBrowserStream()  - 手动停止推流');
+            console.log('  • settingsManager.playStreamAudio() - 使用备用方法启动推流');
+        }
     }
 };
 
 console.log('💡 模块化音乐播放器已加载');
+console.log('💡 输入 app.diagnose.printHelp() 查看诊断命令');
+
 console.log('💡 可通过 window.app.player、window.app.settingsManager 访问核心模块');
