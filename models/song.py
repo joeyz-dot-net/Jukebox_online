@@ -405,12 +405,12 @@ class StreamSong(Song):
             traceback.print_exc()
             return {"status": "ERROR", "error": f"搜索失败: {str(e)}"}
 
-    @staticmethod
-    def extract_playlist(url: str) -> dict:
-        """提取 YouTube 播放列表中的所有视频
+    def extract_playlist(url: str, max_results: int = 10) -> dict:
+        """提取 YouTube 播放列表中的视频
 
         参数:
           url: 播放列表 URL
+          max_results: 最大提取数量（默认10）
 
         返回:
           {'status': 'OK'/'ERROR', 'entries': [...]} 或 {'status': 'ERROR', 'error': '错误信息'}
@@ -425,11 +425,13 @@ class StreamSong(Song):
 
             # 使用 yt-dlp 提取播放列表
             ydl_opts = {
-                "quiet": False,
-                "no_warnings": False,
+                "quiet": True,
+                "no_warnings": True,
                 "extract_flat": True,
                 "skip_download": True,
                 "ignoreerrors": True,
+                "playliststart": 1,
+                "playlistend": max_results,  # 只下载前 max_results 个
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 result = ydl.extract_info(url, download=False)
@@ -473,6 +475,9 @@ class StreamSong(Song):
 
                         title = item.get("title") or "未知标题"
                         duration = item.get("duration", 0)
+                        
+                        # 生成缩略图 URL
+                        thumbnail_url = f"https://img.youtube.com/vi/{video_id}/default.jpg" if video_id else ""
 
                         print(f"[DEBUG] 添加视频: {title} - {entry_url}")
 
@@ -482,6 +487,9 @@ class StreamSong(Song):
                                 "title": title,
                                 "id": video_id or "",
                                 "duration": duration,
+                                "type": "youtube",
+                                "thumbnail_url": thumbnail_url,
+                                "uploader": item.get("uploader", "Unknown"),
                             }
                         )
 
@@ -499,6 +507,66 @@ class StreamSong(Song):
 
             traceback.print_exc()
             return {"status": "ERROR", "error": f"提取播放列表失败: {str(e)}"}
+
+    @staticmethod
+    def extract_metadata(url: str) -> dict:
+        """提取单个 YouTube 视频的元数据
+
+        参数:
+          url: 视频 URL
+
+        返回:
+          {'status': 'OK', 'data': {...}} 或 {'status': 'ERROR', 'error': '错误信息'}
+        """
+        if not url or not url.strip():
+            return {"status": "ERROR", "error": "视频 URL 不能为空"}
+
+        try:
+            import yt_dlp
+
+            print(f"[DEBUG] 提取视频元数据: {url}")
+
+            # 使用 yt-dlp 提取视频信息
+            ydl_opts = {
+                "quiet": False,
+                "no_warnings": False,
+                "skip_download": True,
+                "ignoreerrors": True,
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                result = ydl.extract_info(url, download=False)
+
+                if result:
+                    video_id = result.get("id") or result.get("video_id")
+                    title = result.get("title", "Unknown")
+                    duration = result.get("duration", 0)
+                    
+                    # 生成缩略图 URL
+                    thumbnail_url = f"https://img.youtube.com/vi/{video_id}/default.jpg" if video_id else ""
+                    
+                    # 构建完整的 YouTube URL
+                    entry_url = f"https://www.youtube.com/watch?v={video_id}" if video_id else url
+                    
+                    return {
+                        "status": "OK",
+                        "data": {
+                            "url": entry_url,
+                            "title": title,
+                            "duration": duration,
+                            "uploader": result.get("uploader", "Unknown"),
+                            "id": video_id,
+                            "type": "youtube",
+                            "thumbnail_url": thumbnail_url,
+                        }
+                    }
+                else:
+                    return {"status": "ERROR", "error": "无法获取视频信息"}
+        except Exception as e:
+            print(f"[ERROR] 提取视频元数据失败: {str(e)}")
+            import traceback
+
+            traceback.print_exc()
+            return {"status": "ERROR", "error": f"提取视频元数据失败: {str(e)}"}
 
     def __repr__(self):
         return f"StreamSong(title='{self.title}', type='{self.stream_type}', id='{self.video_id}')"

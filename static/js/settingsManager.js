@@ -1,5 +1,6 @@
 /**
  * 用户设置管理模块
+ * 注意：用户设置存储在浏览器 localStorage 中，不依赖服务器存储
  */
 
 import { Toast } from './ui.js';
@@ -7,9 +8,24 @@ import { themeManager } from './themeManager.js';
 import { i18n } from './i18n.js';
 
 export const settingsManager = {
-    settings: {},
+    // 默认设置
+    DEFAULT_SETTINGS: {
+        'theme': 'dark',
+        'auto_stream': false,
+        'stream_volume': '50',
+        'language': 'auto'
+    },
+    
+    // 用于存储 player 实例引用
+    player: null,
     schema: {},
-    player: null,  // 用于存储 player 实例引用
+    
+    /**
+     * 获取设置对象（从 localStorage）
+     */
+    get settings() {
+        return this.loadSettingsFromStorage();
+    },
     
     /**
      * 设置 player 实例
@@ -24,10 +40,15 @@ export const settingsManager = {
      */
     async init() {
         try {
-            console.log('[设置] 初始化设置管理器...');
+            console.log('[设置] 初始化设置管理器（使用浏览器 localStorage）...');
             
-            // 加载设置和schema
-            await this.loadSettings();
+            // 从 localStorage 加载设置
+            this.loadSettingsFromStorage();
+            
+            // 更新 UI 表单
+            this.updateUI();
+            
+            // 加载 schema
             await this.loadSchema();
             
             // 应用主题
@@ -39,40 +60,73 @@ export const settingsManager = {
             // 绑定事件
             this.bindEvents();
             
-            // 如果推流默认启用，记录到 localStorage
-            if (this.settings.auto_stream === true) {
-                localStorage.setItem('streamActive', 'true');
-                console.log('[设置] 推流已启用（默认值）');
-            } else {
-                localStorage.setItem('streamActive', 'false');
-            }
+            // 同步推流状态到 localStorage
+            const autoStream = this.getSettings('auto_stream') === 'true' || this.getSettings('auto_stream') === true;
+            localStorage.setItem('streamActive', autoStream ? 'true' : 'false');
+            console.log(`[设置] 推流状态已同步: ${autoStream ? '启用' : '禁用'}`);
             
-            console.log('✓ 设置管理器已初始化');
+            console.log('✓ 设置管理器已初始化（localStorage）');
         } catch (error) {
             console.error('[设置] 初始化失败:', error);
         }
     },
     
     /**
-     * 加载设置
+     * 从 localStorage 加载设置
      */
-    async loadSettings() {
-        try {
-            const response = await fetch('/settings');
-            const result = await response.json();
-            
-            if (result.status === 'OK') {
-                this.settings = result.data;
-                this.updateUI();
-                console.log('[设置] 已加载:', this.settings);
+    loadSettingsFromStorage() {
+        const stored = localStorage.getItem('musicPlayerSettings');
+        
+        if (stored) {
+            try {
+                const settings = JSON.parse(stored);
+                console.log('[设置] 从 localStorage 加载设置:', settings);
+                return settings;
+            } catch (e) {
+                console.error('[设置] 解析 localStorage 失败:', e);
+                return this.DEFAULT_SETTINGS;
             }
-        } catch (error) {
-            console.error('[设置] 加载失败:', error);
+        }
+        
+        console.log('[设置] localStorage 中无设置，使用默认值');
+        return this.DEFAULT_SETTINGS;
+    },
+    
+    /**
+     * 保存设置到 localStorage
+     */
+    saveSettingsToStorage(settings) {
+        try {
+            localStorage.setItem('musicPlayerSettings', JSON.stringify(settings));
+            console.log('[设置] 已保存到 localStorage:', settings);
+            return true;
+        } catch (e) {
+            console.error('[设置] 保存到 localStorage 失败:', e);
+            return false;
         }
     },
     
     /**
-     * 加载设置schema
+     * 获取单个设置值
+     */
+    getSettings(key) {
+        const settings = this.loadSettingsFromStorage();
+        return settings[key] !== undefined ? settings[key] : this.DEFAULT_SETTINGS[key];
+    },
+    
+    /**
+     * 设置单个值
+     */
+    setSetting(key, value) {
+        const settings = this.loadSettingsFromStorage();
+        settings[key] = value;
+        this.saveSettingsToStorage(settings);
+        console.log(`[设置] ${key} = ${value}`);
+        return true;
+    },
+    
+    /**
+     * 加载设置 schema
      */
     async loadSchema() {
         try {
@@ -92,32 +146,35 @@ export const settingsManager = {
      * 更新UI - 将设置值同步到表单
      */
     updateUI() {
+        const settings = this.loadSettingsFromStorage();
+        
         // 主题
         const themeSelect = document.getElementById('themeSetting');
         if (themeSelect) {
-            themeSelect.value = this.settings.theme || 'dark';
+            themeSelect.value = settings.theme || 'dark';
         }
         
-        // 语言 - 显示用户设置的值（可能是auto/zh/en）
+        // 语言
         const langSelect = document.getElementById('languageSetting');
         if (langSelect) {
-            // 使用后端设置的语言值（可能是 auto/zh/en）
-            langSelect.value = this.settings.language || 'auto';
+            langSelect.value = settings.language || 'auto';
         }
         
         // 自动推流
         const autoStreamCheck = document.getElementById('autoStreamSetting');
         if (autoStreamCheck) {
-            autoStreamCheck.checked = this.settings.auto_stream !== false;
+            const autoStream = settings.auto_stream === 'true' || settings.auto_stream === true;
+            autoStreamCheck.checked = autoStream;
         }
         
         // 推流音量
         const streamVolumeSlider = document.getElementById('streamVolumeSetting');
         const streamVolumeValue = document.getElementById('streamVolumeValue');
         if (streamVolumeSlider) {
-            streamVolumeSlider.value = this.settings.stream_volume || 50;
+            const volume = settings.stream_volume || 50;
+            streamVolumeSlider.value = volume;
             if (streamVolumeValue) {
-                streamVolumeValue.textContent = `${streamVolumeSlider.value}%`;
+                streamVolumeValue.textContent = `${volume}%`;
             }
         }
     },
@@ -131,13 +188,15 @@ export const settingsManager = {
         const streamVolumeValue = document.getElementById('streamVolumeValue');
         if (streamVolumeSlider) {
             streamVolumeSlider.addEventListener('input', (e) => {
+                // 保存到 localStorage
+                this.setSetting('stream_volume', e.target.value);
                 if (streamVolumeValue) {
                     streamVolumeValue.textContent = `${e.target.value}%`;
                 }
             });
         }
         
-        // 接收推流开关 - 用户切换时立即保存并启动推流
+        // 推流开关 - 用户切换时保存到 localStorage
         const autoStreamCheck = document.getElementById('autoStreamSetting');
         if (autoStreamCheck) {
             autoStreamCheck.addEventListener('change', async (e) => {
@@ -146,77 +205,39 @@ export const settingsManager = {
                 console.log(`%c[推流开关] 用户操作: ${isEnabled ? '✓ 启用' : '✗ 禁用'}`, 
                     `color: ${isEnabled ? '#4CAF50' : '#FF9800'}; font-weight: bold`);
                 
-                if (isEnabled) {
-                    // 启用推流
-                    console.log('[接收推流] 用户启用推流，正在注册...');
-                    this.showNotification('🔄 正在注册推流服务...', 'info');
-                } else {
-                    // 禁用推流
-                    console.log('[接收推流] 用户禁用推流');
-                    this.showNotification('🔌 已关闭接收推流', 'info');
-                }
-                
-                // 立即保存接收推流设置
-                this.settings.auto_stream = isEnabled;
-                
                 // 保存到 localStorage
+                this.setSetting('auto_stream', isEnabled);
                 localStorage.setItem('streamActive', isEnabled ? 'true' : 'false');
-                console.log(`[接收推流] localStorage.streamActive = ${isEnabled ? 'true' : 'false'}`);
+                console.log(`[设置] localStorage.streamActive = ${isEnabled ? 'true' : 'false'}`);
                 
-                // 发送到服务器保存
-                console.log('[接收推流] 发送请求到服务器...');
-                fetch('/settings/auto_stream', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ value: isEnabled })
-                }).then(res => res.json())
-                  .then(async (result) => {
-                    if (result.status === 'OK') {
-                        console.log('%c[接收推流] 设置已保存到服务器 ✓', 'color: #4CAF50; font-weight: bold');
-                        
-                        if (isEnabled) {
-                            // 启用推流的提示
-                            this.showNotification('✓ 注册成功！推流已启用', 'success');
-                            
-                            console.log('%c[接收推流] 准备启动推流...', 'color: #2196F3; font-weight: bold');
-                            
-                            const streamFormat = localStorage.getItem('streamFormat') || 'mp3';
-                            const streamVolume = this.settings.stream_volume || 50;
-                            
-                            console.log(`[接收推流] 推流参数: 格式=${streamFormat}, 音量=${streamVolume}%`);
-                            
-                            // 显示推流启动中的提示
-                            this.showNotification(
-                                `📻 开始接收推流 (${streamFormat.toUpperCase()}, ${streamVolume}%)...`,
-                                'info'
-                            );
-                            
-                            // 使用 player.startBrowserStream() 以获得完整的 Safari 优化
-                            if (this.player && this.player.startBrowserStream) {
-                                console.log('%c[接收推流] 调用 player.startBrowserStream() 启动推流', 'color: #2196F3; font-weight: bold; font-size: 12px');
-                                await this.player.startBrowserStream(streamFormat);
-                                console.log('%c[接收推流] player.startBrowserStream() 返回', 'color: #4CAF50; font-size: 12px');
-                            } else {
-                                // 备用方案：如果 player 不可用，使用基础推流方法
-                                console.warn('%c[接收推流] player 实例不可用，使用备用推流方法', 'color: #FF9800; font-weight: bold');
-                                this.playStreamAudio(streamFormat, streamVolume / 100);
-                            }
-                        } else {
-                            // 禁用推流的处理
-                            console.log('[接收推流] 禁用推流，停止播放推流音频...');
-                            
-                            // 立即停止推流
-                            this.stopStream();
-                            
-                            // 显示禁用成功提示
-                            this.showNotification('✓ 已禁用接收推流', 'success');
-                        }
+                if (isEnabled) {
+                    console.log('[接收推流] 用户启用推流，正在启动...');
+                    this.showNotification('🔄 正在启动推流服务...', 'info');
+                    
+                    const streamFormat = localStorage.getItem('streamFormat') || 'mp3';
+                    const streamVolume = this.getSettings('stream_volume') || 50;
+                    
+                    console.log(`[接收推流] 推流参数: 格式=${streamFormat}, 音量=${streamVolume}%`);
+                    
+                    this.showNotification(
+                        `📻 开始接收推流 (${streamFormat.toUpperCase()}, ${streamVolume}%)...`,
+                        'info'
+                    );
+                    
+                    // 使用 player.startBrowserStream() 启动推流
+                    if (this.player && this.player.startBrowserStream) {
+                        console.log('%c[接收推流] 调用 player.startBrowserStream() 启动推流', 'color: #2196F3; font-weight: bold; font-size: 12px');
+                        await this.player.startBrowserStream(streamFormat);
+                        this.showNotification('✓ 推流已启用', 'success');
+                    } else {
+                        console.warn('[接收推流] player 实例不可用');
+                        this.playStreamAudio(streamFormat, streamVolume / 100);
                     }
-                  })
-                  .catch(err => {
-                    console.error('[接收推流] 保存失败:', err);
-                    this.showNotification('❌ 注册失败，请重试', 'error');
-                  });
+                } else {
+                    console.log('[接收推流] 用户禁用推流');
+                    this.stopStream();
+                    this.showNotification('✓ 已禁用接收推流', 'success');
+                }
             });
         }
         
@@ -224,6 +245,7 @@ export const settingsManager = {
         const themeSelect = document.getElementById('themeSetting');
         if (themeSelect) {
             themeSelect.addEventListener('change', (e) => {
+                this.setSetting('theme', e.target.value);
                 this.applyTheme(e.target.value);
             });
         }
@@ -232,6 +254,7 @@ export const settingsManager = {
         const langSelect = document.getElementById('languageSetting');
         if (langSelect) {
             langSelect.addEventListener('change', (e) => {
+                this.setSetting('language', e.target.value);
                 this.applyLanguage(e.target.value);
             });
         }
@@ -258,7 +281,7 @@ export const settingsManager = {
      */
     applyTheme(theme = null) {
         if (theme === null) {
-            theme = this.settings.theme || 'dark';
+            theme = this.getSettings('theme') || 'dark';
         }
         
         console.log(`[设置] 准备应用主题: ${theme}`);
@@ -276,21 +299,19 @@ export const settingsManager = {
         // 统一的主题类名
         const themeClass = theme === 'light' ? 'theme-light' : 'theme-dark';
         
-        // 应用 body 类名（themeManager 会应用，但我们也保证它）
+        // 应用 body 类名
         const body = document.body;
         body.classList.remove('theme-dark', 'theme-light');
         body.classList.add(themeClass);
         console.log(`[设置] body 类名已更新: ${body.className}`);
         
-        // 应用歌单类名（使用相同的类名）
+        // 应用歌单类名
         const playlistEl = document.getElementById('playlist');
         if (playlistEl) {
             playlistEl.classList.remove('theme-dark', 'theme-light', 'bright-theme', 'dark-theme');
             playlistEl.classList.add(themeClass);
             console.log(`[设置] playlist 类名已更新: ${playlistEl.className}`);
         } else {
-            console.warn(`[设置] 未找到 playlist 元素，稍后重试...`);
-            // 如果还没有 playlist 元素，延迟重试
             setTimeout(() => {
                 const playlistEl = document.getElementById('playlist');
                 if (playlistEl) {
@@ -307,7 +328,7 @@ export const settingsManager = {
      */
     applyLanguage(language = null) {
         if (language === null) {
-            language = this.settings.language || i18n.currentLanguage || 'zh';
+            language = this.getSettings('language') || i18n.currentLanguage || 'zh';
         }
         
         // 如果选择"自动"，则自动检测浏览器语言

@@ -14,7 +14,7 @@ export function buildTrackItemHTML({
     const meta = metaText || (type === 'local' ? (song.url || '未知位置') : '未知');
 
     return `
-        <div class="search-result-item playlist-track-item" data-url="${song.url || ''}" data-title="${title}" data-type="${type}">
+        <div class="search-result-item playlist-track-item" data-url="${song.url || ''}" data-title="${title}" data-type="${type}" data-thumbnail_url="${cover || ''}">
             <div class="track-left">
                 <div class="track-cover">
                     <img src="${cover}" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />

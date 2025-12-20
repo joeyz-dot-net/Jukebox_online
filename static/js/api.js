@@ -131,6 +131,15 @@ export class MusicAPI {
         });
     }
 
+    async addSongToPlaylistTop(playlistId, song) {
+        const formData = new FormData();
+        formData.append('url', song.url || '');
+        formData.append('title', song.title || '');
+        formData.append('type', song.type || 'local');
+        if (song.thumbnail_url) formData.append('thumbnail_url', song.thumbnail_url);
+        return this.postForm(`/playlists/${playlistId}/add_next`, formData);
+    }
+
     // 搜索 API
     async searchSong(query) {
         return this.post('/search_song', { query });

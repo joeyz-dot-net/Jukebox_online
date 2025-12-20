@@ -10,6 +10,7 @@ export class VolumeControl {
         this.isDragging = false;
         this.pendingValue = null;
         this.throttleTimer = null;
+        this.hideDisplayTimer = null;  // 添加隐藏显示的定时器
         this.silent = false;  // 静默模式标志
     }
 
@@ -83,6 +84,41 @@ export class VolumeControl {
         
         if (this.slider && this.slider.value !== undefined) {
             this.slider.value = value;
+        }
+        
+        // 同时更新完整播放器的音量显示
+        const fullPlayerDisplay = document.getElementById('fullPlayerVolumeDisplay');
+        if (fullPlayerDisplay) {
+            const volumeValue = fullPlayerDisplay.querySelector('.volume-value');
+            if (volumeValue) {
+                volumeValue.textContent = `${Math.round(value)}`;
+            }
+            
+            // 显示音量气泡
+            fullPlayerDisplay.style.display = 'block';
+            fullPlayerDisplay.style.opacity = '1';
+            
+            // 触发动画
+            fullPlayerDisplay.classList.remove('show');
+            void fullPlayerDisplay.offsetWidth; // 强制浏览器重排
+            fullPlayerDisplay.classList.add('show');
+            
+            // 清除之前的隐藏定时器
+            if (this.hideDisplayTimer) {
+                clearTimeout(this.hideDisplayTimer);
+            }
+            
+            // 3秒后自动隐藏
+            this.hideDisplayTimer = setTimeout(() => {
+                if (fullPlayerDisplay) {
+                    fullPlayerDisplay.style.opacity = '0';
+                    setTimeout(() => {
+                        if (fullPlayerDisplay) {
+                            fullPlayerDisplay.style.display = 'none';
+                        }
+                    }, 200);
+                }
+            }, 3000);
         }
         
         // 不输出 updateDisplay 日志，太频繁
@@ -195,3 +231,5 @@ export class VolumeControl {
 
 // 导出单例
 export const volumeControl = new VolumeControl();
+
+// 为完整播放器音量滑块添加显示功能

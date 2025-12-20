@@ -34,12 +34,30 @@ export class SearchManager {
         
         if (searchModalBack && searchModal) {
             const closeAndRefresh = async () => {
-                searchModal.style.display = 'none';
-                if (this.refreshPlaylist) {
-                    await this.refreshPlaylist();
-                } else {
-                    document.dispatchEvent(new CustomEvent('playlist:refresh'));
+                console.log('🔍 搜索关闭');
+                
+                // 移除搜索栏目的active状态和样式
+                searchModal.classList.remove('modal-visible');
+                setTimeout(() => {
+                    searchModal.style.display = 'none';
+                }, 300);
+                
+                const navItems = document.querySelectorAll('.nav-item');
+                const searchNavItem = Array.from(navItems).find(item => item.getAttribute('data-tab') === 'search');
+                if (searchNavItem) {
+                    searchNavItem.classList.remove('active');
                 }
+                
+                // 延迟后恢复之前的栏目
+                setTimeout(() => {
+                    // 触发playlist:refresh事件，然后模仿之前栏目的展示逻辑
+                    // 实际上让浏览器自动处理会更复杂，直接调用刷新歌单显示
+                    if (this.refreshPlaylist) {
+                        this.refreshPlaylist();
+                    } else {
+                        document.dispatchEvent(new CustomEvent('playlist:refresh'));
+                    }
+                }, 300);
             };
 
             searchModalBack.addEventListener('click', closeAndRefresh);
@@ -267,7 +285,8 @@ export class SearchManager {
                 const songData = {
                     url: item.getAttribute('data-url'),
                     title: item.getAttribute('data-title'),
-                    type: item.getAttribute('data-type')
+                    type: item.getAttribute('data-type'),
+                    thumbnail_url: item.getAttribute('data-thumbnail_url') || ''
                 };
                 
                 try {

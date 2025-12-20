@@ -34,6 +34,8 @@ class MusicPlayer:
         "SERVER_PORT": "80",
         "DEBUG": "false",
         "MPV_CMD": r"c:\mpv\mpv.exe --input-ipc-server=\\.\pipe\mpv-pipe --idle=yes --force-window=no",
+        "LOCAL_SEARCH_MAX_RESULTS": "20",
+        "YOUTUBE_SEARCH_MAX_RESULTS": "20",
     }
 
     @staticmethod
@@ -122,6 +124,8 @@ class MusicPlayer:
         debug=False,
         mpv_cmd=None,
         data_dir=".",
+        local_search_max_results=20,
+        youtube_search_max_results=10,
     ):
         """
         初始化音乐播放器
@@ -134,6 +138,8 @@ class MusicPlayer:
           debug: 是否启用调试模式
           mpv_cmd: mpv 命令行
           data_dir: 数据文件存储目录
+          local_search_max_results: 本地搜索最大结果数
+          youtube_search_max_results: YouTube搜索最大结果数
         """
         # 配置属性
         self.music_dir = self._normalize_music_dir(music_dir)
@@ -141,6 +147,8 @@ class MusicPlayer:
         self.server_host = server_host
         self.server_port = int(server_port)
         self.debug = debug
+        self.local_search_max_results = int(local_search_max_results)
+        self.youtube_search_max_results = int(youtube_search_max_results)
         # 使用类方法避免实例绑定问题
         self.mpv_cmd = mpv_cmd or MusicPlayer._get_default_mpv_cmd()
         self.data_dir = data_dir
@@ -275,6 +283,11 @@ class MusicPlayer:
         print(f"[INFO]   SERVER_PORT: {server_port_str}")
         print(f"[INFO]   DEBUG: {debug_flag} (原始值: {debug_str})")
         print(f"[INFO]   MPV_CMD: {'已配置' if mpv_cmd else '使用默认'}")
+        
+        local_search_max = cfg.get("LOCAL_SEARCH_MAX_RESULTS", cls.DEFAULT_CONFIG["LOCAL_SEARCH_MAX_RESULTS"])
+        youtube_search_max = cfg.get("YOUTUBE_SEARCH_MAX_RESULTS", cls.DEFAULT_CONFIG["YOUTUBE_SEARCH_MAX_RESULTS"])
+        print(f"[INFO]   LOCAL_SEARCH_MAX_RESULTS: {local_search_max}")
+        print(f"[INFO]   YOUTUBE_SEARCH_MAX_RESULTS: {youtube_search_max}")
         print(f"[INFO] ===== 配置加载完成 =====\n")
         
         return cls(
@@ -285,6 +298,8 @@ class MusicPlayer:
             debug=debug_flag,
             mpv_cmd=mpv_cmd,
             data_dir=data_dir,
+            local_search_max_results=local_search_max,
+            youtube_search_max_results=youtube_search_max,
         )
 
     @classmethod

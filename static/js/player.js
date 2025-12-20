@@ -235,6 +235,20 @@ export class Player {
                     4: 'MEDIA_ERR_SRC_NOT_SUPPORTED - 不支持的格式'
                 }[errorCode] || `未知错误 (${errorCode})`;
                 
+                // 静默处理格式不支持错误（code=4），不显示 toast 提示
+                if (errorCode === 4) {
+                    console.warn(`[推流] ⚠️ 浏览器不支持此流格式，已自动切换`);
+                    console.warn(`[推流] 诊断信息:`);
+                    console.warn(`  - 浏览器支持检测: ${canPlayType}`);
+                    console.warn(`  - 请求格式: ${streamFormat}`);
+                    console.warn(`  - MIME 类型: ${testMimeType}`);
+                    console.warn(`  - 源 URL: ${freshAudioElement.src}`);
+                    // 只发送 stream:error 事件给内部处理，不显示用户提示
+                    this.emit('stream:error', { error: e, errorMsg: errorMsg, silent: true });
+                    return;
+                }
+                
+                // 其他错误正常处理
                 console.error(`[推流] ❌ 播放错误:`, {
                     code: errorCode,
                     message: errorMsg,
@@ -243,15 +257,6 @@ export class Player {
                     canPlayType: canPlayType,
                     element: freshAudioElement
                 });
-                
-                // 格式不支持时的诊断信息
-                if (errorCode === 4) {
-                    console.warn(`[推流] 💡 诊断信息:`);
-                    console.warn(`  - 浏览器支持检测: ${canPlayType}`);
-                    console.warn(`  - 请求格式: ${streamFormat}`);
-                    console.warn(`  - MIME 类型: ${testMimeType}`);
-                    console.warn(`  - 源 URL: ${freshAudioElement.src}`);
-                }
                 
                 this.emit('stream:error', { error: e, errorMsg: errorMsg });
             };

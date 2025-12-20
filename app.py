@@ -599,17 +599,42 @@ async def search_song(request: Request):
                 status_code=400
             )
         
-        # 本地搜索
-        local_results = PLAYER.search_local(query, max_results=10)
+        # 检查是否是 URL（YouTube 播放列表或视频）
+        is_url = query.startswith("http://") or query.startswith("https://")
         
-        # YouTube搜索
+        local_results = []
         youtube_results = []
-        try:
-            yt_search_result = StreamSong.search(query, max_results=5)
-            if yt_search_result.get("status") == "OK":
-                youtube_results = yt_search_result.get("results", [])
-        except Exception as e:
-            print(f"[警告] YouTube搜索失败: {e}")
+        
+        if is_url:
+            # 如果是 URL，尝试提取播放列表或视频
+            try:
+                # 先尝试作为播放列表处理
+                playlist_result = StreamSong.extract_playlist(query)
+                if playlist_result.get("status") == "OK":
+                    youtube_results = playlist_result.get("entries", [])
+                    # 如果播放列表为空，可能是单个视频，尝试作为视频处理
+                    if not youtube_results:
+                        video_result = StreamSong.extract_metadata(query)
+                        if video_result.get("status") == "OK":
+                            youtube_results = [video_result.get("data", {})]
+                else:
+                    # 如果不是播放列表，尝试作为单个视频处理
+                    video_result = StreamSong.extract_metadata(query)
+                    if video_result.get("status") == "OK":
+                        youtube_results = [video_result.get("data", {})]
+            except Exception as e:
+                print(f"[警告] 提取 YouTube URL 失败: {e}")
+        else:
+            # 本地搜索
+            local_results = PLAYER.search_local(query, max_results=PLAYER.local_search_max_results)
+            
+            # YouTube 关键词搜索
+            try:
+                yt_search_result = StreamSong.search(query, max_results=PLAYER.youtube_search_max_results)
+                if yt_search_result.get("status") == "OK":
+                    youtube_results = yt_search_result.get("results", [])
+            except Exception as e:
+                print(f"[警告] YouTube搜索失败: {e}")
         
         return {
             "status": "OK",
@@ -720,7 +745,7 @@ async def create_playlist(request: Request):
 
 @app.post("/playlist_add")
 async def add_to_playlist(request: Request):
-    """添加歌曲到歌单"""
+    """添加歌曲到歌单（添加到下一曲位置）"""
     try:
         data = await request.json()
         playlist_id = data.get("playlist_id", CURRENT_PLAYLIST_ID)
@@ -732,13 +757,186 @@ async def add_to_playlist(request: Request):
                 status_code=400
             )
         
-        PLAYLISTS_MANAGER.add_song_to_playlist(playlist_id, song_data)
+        playlist = PLAYLISTS_MANAGER.get_playlist(playlist_id)
+        if not playlist:
+            return JSONResponse(
+                {"status": "ERROR", "error": "歌单不存在"},
+                status_code=404
+            )
+        
+        # 获取当前播放歌曲的索引（从歌单数据中获取）
+        current_index = playlist.current_playing_index if hasattr(playlist, 'current_playing_index') else -1
+        
+        # 如果有当前播放的歌曲，则插入到下一个位置；否则插入到第一首之后
+        if current_index >= 0 and current_index < len(playlist.songs):
+            insert_index = current_index + 1
+        else:
+            insert_index = 1 if playlist.songs else 0  # 第一首之后，或如果空列表则位置0
+        
+        # 创建 Song 对象
+        song_type = song_data.get("type", "local")
+        thumbnail_url = song_data.get("thumbnail_url")
+        
+        # 如果是 YouTube 歌曲且没有缩略图，自动生成
+        if song_type == "youtube" and not thumbnail_url:
+            url = song_data.get("url", "")
+            if "youtube.com" in url or "youtu.be" in url:
+                # 提取视频 ID
+                import re
+                video_id_match = re.search(r'(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})', url)
+                if video_id_match:
+                    video_id = video_id_match.group(1)
+                    thumbnail_url = f"https://img.youtube.com/vi/{video_id}/default.jpg"
+        
+        song_obj = Song(
+            url=song_data.get("url"),
+            title=song_data.get("title"),
+            song_type=song_type,
+            duration=song_data.get("duration", 0),
+            thumbnail_url=thumbnail_url
+        )
+        
+        # 转换为字典格式后插入
+        song_dict = song_obj.to_dict()
+        playlist.songs.insert(insert_index, song_dict)
+        playlist.updated_at = time.time()
+        PLAYLISTS_MANAGER.save()
         
         return {
             "status": "OK",
-            "message": "添加成功"
+            "message": f"已添加到下一曲（位置 {insert_index}）"
         }
     except Exception as e:
+        print(f"[ERROR] 添加歌曲失败: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {"status": "ERROR", "error": str(e)},
+            status_code=500
+        )
+
+@app.post("/playlists/{playlist_id}/add_next")
+async def add_song_to_playlist_next(playlist_id: str, request: Request):
+    """添加歌曲到下一曲位置"""
+    try:
+        form_data = await request.form()
+        url = form_data.get('url', '')
+        title = form_data.get('title', '')
+        song_type = form_data.get('type', 'local')
+        thumbnail_url = form_data.get('thumbnail_url', '')
+        
+        if not url or not title:
+            return JSONResponse(
+                {"status": "ERROR", "error": "URL 和标题不能为空"},
+                status_code=400
+            )
+        
+        # 添加到歌单
+        playlist = PLAYLISTS_MANAGER.get_playlist(playlist_id)
+        if not playlist:
+            return JSONResponse(
+                {"status": "ERROR", "error": f"歌单 {playlist_id} 不存在"},
+                status_code=404
+            )
+        
+        # 如果是 YouTube 歌曲且没有缩略图，自动生成
+        if song_type == "youtube" and not thumbnail_url:
+            # 提取视频 ID
+            import re
+            video_id_match = re.search(r'(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})', url)
+            if video_id_match:
+                video_id = video_id_match.group(1)
+                thumbnail_url = f"https://img.youtube.com/vi/{video_id}/default.jpg"
+        
+        # 创建歌曲对象
+        from models.song import Song
+        song_obj = Song(
+            url=url,
+            title=title,
+            song_type=song_type,
+            duration=0,
+            thumbnail_url=thumbnail_url if thumbnail_url else None
+        )
+        
+        # 获取当前播放歌曲的索引（从歌单数据中获取）
+        current_index = playlist.current_playing_index if hasattr(playlist, 'current_playing_index') else -1
+        
+        # 如果有当前播放的歌曲，则插入到下一个位置；否则插入到第一首之后
+        if current_index >= 0 and current_index < len(playlist.songs):
+            insert_index = current_index + 1
+        else:
+            insert_index = 1 if playlist.songs else 0  # 第一首之后，或如果空列表则位置0
+        
+        # 在指定位置插入歌曲
+        song_dict = song_obj.to_dict()
+        playlist.songs.insert(insert_index, song_dict)
+        playlist.updated_at = time.time()
+        PLAYLISTS_MANAGER.save()
+        
+        return {
+            "status": "OK",
+            "message": f"已添加到下一曲"
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            {"status": "ERROR", "error": str(e)},
+            status_code=500
+        )
+
+@app.post("/playlists/{playlist_id}/add_top")
+async def add_song_to_playlist_top(playlist_id: str, request: Request):
+    """添加歌曲到歌单顶部"""
+    try:
+        form_data = await request.form()
+        url = form_data.get('url', '')
+        title = form_data.get('title', '')
+        song_type = form_data.get('type', 'local')
+        thumbnail_url = form_data.get('thumbnail_url', '')
+        
+        if not url or not title:
+            return JSONResponse(
+                {"status": "ERROR", "error": "URL 和标题不能为空"},
+                status_code=400
+            )
+        
+        song_data = {
+            "url": url,
+            "title": title,
+            "type": song_type,
+            "duration": 0
+        }
+        
+        if thumbnail_url:
+            song_data["thumbnail_url"] = thumbnail_url
+        
+        # 添加到歌单顶部
+        playlist = PLAYLISTS_MANAGER.get_playlist(playlist_id)
+        if not playlist:
+            return JSONResponse(
+                {"status": "ERROR", "error": f"歌单 {playlist_id} 不存在"},
+                status_code=404
+            )
+        
+        # 使用 add_song 方法添加歌曲
+        success = playlist.add_song(song_data)
+        
+        # 如果添加成功，重新排列使其在顶部
+        if success and len(playlist.songs) > 1:
+            # 将最后添加的歌曲移到顶部
+            playlist.songs.insert(0, playlist.songs.pop())
+        
+        playlist.updated_at = time.time()
+        PLAYLISTS_MANAGER.save()
+        
+        return {
+            "status": "OK",
+            "message": "已添加到歌单顶部"
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             {"status": "ERROR", "error": str(e)},
             status_code=500
@@ -1325,11 +1523,16 @@ def mpv_get(property_name):
 
 @app.get("/settings")
 async def get_user_settings():
-    """获取当前用户设置"""
+    """获取默认设置（用户设置由浏览器 localStorage 管理）"""
     try:
         return {
             "status": "OK",
-            "data": SETTINGS.get_all()
+            "data": {
+                "theme": "dark",
+                "auto_stream": False,
+                "stream_volume": 50,
+                "language": "auto"
+            }
         }
     except Exception as e:
         return JSONResponse(
@@ -1339,40 +1542,18 @@ async def get_user_settings():
 
 @app.post("/settings")
 async def update_user_settings(request: Request):
-    """更新用户设置（批量）"""
+    """设置已由浏览器 localStorage 管理，此接口仅返回成功响应"""
     try:
         data = await request.json()
+        logger.info(f"[设置] 浏览器端发送的设置: {data}（已由客户端保存到 localStorage）")
         
-        # 验证设置项
-        valid_keys = set(SETTINGS.DEFAULT_SETTINGS.keys())
-        update_dict = {}
-        
-        for key, value in data.items():
-            if key in valid_keys:
-                update_dict[key] = value
-            else:
-                logger.warning(f"[设置] 忽略未知设置项: {key}")
-        
-        if update_dict:
-            success = SETTINGS.update(update_dict)
-            if success:
-                return {
-                    "status": "OK",
-                    "message": "设置已更新",
-                    "data": SETTINGS.get_all()
-                }
-            else:
-                return JSONResponse(
-                    {"status": "ERROR", "error": "设置更新失败"},
-                    status_code=500
-                )
-        else:
-            return {
-                "status": "OK",
-                "message": "没有有效的设置项"
-            }
+        return {
+            "status": "OK",
+            "message": "设置已保存到浏览器本地存储",
+            "data": data
+        }
     except Exception as e:
-        logger.error(f"[设置] 更新失败: {e}")
+        logger.error(f"[设置] 处理失败: {e}")
         return JSONResponse(
             {"status": "ERROR", "error": str(e)},
             status_code=500
@@ -1380,30 +1561,32 @@ async def update_user_settings(request: Request):
 
 @app.post("/settings/{key}")
 async def update_single_setting(key: str, request: Request):
-    """更新单个设置"""
+    """更新单个设置（由浏览器 localStorage 管理）"""
     try:
         data = await request.json()
         value = data.get("value")
         
-        # 验证设置项
-        if key not in SETTINGS.DEFAULT_SETTINGS:
+        # 验证设置项（仅用于验证，实际存储由浏览器处理）
+        default_settings = {
+            "theme": "dark",
+            "auto_stream": False,
+            "stream_volume": 50,
+            "language": "auto"
+        }
+        
+        if key not in default_settings:
             return JSONResponse(
                 {"status": "ERROR", "error": f"未知的设置项: {key}"},
                 status_code=400
             )
         
-        success = SETTINGS.set(key, value)
-        if success:
-            return {
-                "status": "OK",
-                "message": f"已更新 {key}",
-                "data": {key: value}
-            }
-        else:
-            return JSONResponse(
-                {"status": "ERROR", "error": "更新失败"},
-                status_code=500
-            )
+        logger.info(f"[设置] 客户端更新 {key} = {value}（已保存到 localStorage）")
+        
+        return {
+            "status": "OK",
+            "message": f"已更新 {key}（客户端存储）",
+            "data": {key: value}
+        }
     except Exception as e:
         return JSONResponse(
             {"status": "ERROR", "error": str(e)},
@@ -1412,42 +1595,23 @@ async def update_single_setting(key: str, request: Request):
 
 @app.post("/settings/reset")
 async def reset_settings():
-    """重置设置为默认值"""
+    """重置设置为默认值（浏览器 localStorage）"""
     try:
-        logger.info("[API] 重置设置请求")
-        success = SETTINGS.reset()
-        logger.info(f"[API] 重置结果: {success}")
+        logger.info("[API] 重置设置请求（浏览器 localStorage）")
         
-        if not success:
-            logger.error("[API] 重置失败")
-            return JSONResponse(
-                {"status": "ERROR", "error": "重置失败"},
-                status_code=500
-            )
-        
-        # 获取重置后的设置
-        result_data = SETTINGS.get_all()
-        logger.info(f"[API] 重置后获取的设置数据: {result_data}")
-        logger.info(f"[API] 设置数据类型: {type(result_data)}")
-        
-        # 确保数据可以序列化
-        import json as json_module
-        try:
-            json_str = json_module.dumps(result_data)
-            logger.info(f"[API] JSON 序列化成功: {json_str}")
-        except Exception as json_err:
-            logger.error(f"[API] JSON 序列化失败: {json_err}")
-            return JSONResponse(
-                {"status": "ERROR", "error": f"数据序列化失败: {str(json_err)}"},
-                status_code=500
-            )
+        default_settings = {
+            "theme": "dark",
+            "auto_stream": False,
+            "stream_volume": 50,
+            "language": "auto"
+        }
         
         response_data = {
             "status": "OK",
-            "message": "已重置为默认设置",
-            "data": result_data
+            "message": "已重置为默认设置（请清空 localStorage 重新加载）",
+            "data": default_settings
         }
-        logger.info(f"[API] 准备返回响应")
+        
         return JSONResponse(response_data, status_code=200)
         
     except Exception as e:

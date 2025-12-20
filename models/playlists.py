@@ -25,6 +25,7 @@ class Playlist:
         songs: List[str] = None,
         created_at: float = None,
         updated_at: float = None,
+        current_playing_index: int = -1,
     ):
         """初始化播放列表
 
@@ -34,12 +35,14 @@ class Playlist:
             songs: 歌曲路径列表
             created_at: 创建时间戳
             updated_at: 更新时间戳
+            current_playing_index: 当前播放歌曲的索引（-1表示未开始播放）
         """
         self.id = playlist_id or str(int(time.time() * 1000))
         self.name = name
         self.songs = songs or []
         self.created_at = created_at or time.time()
         self.updated_at = updated_at or time.time()
+        self.current_playing_index = current_playing_index
 
         # 确保串流歌曲具备缩略图（兼容旧数据）
         self._hydrate_stream_thumbnails()
@@ -222,6 +225,7 @@ class Playlist:
             "song_count": len(self.songs),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "current_playing_index": self.current_playing_index,
         }
 
     @classmethod
@@ -240,6 +244,7 @@ class Playlist:
             songs=data.get("songs", []),
             created_at=data.get("created_at"),
             updated_at=data.get("updated_at"),
+            current_playing_index=data.get("current_playing_index", -1),
         )
 
 

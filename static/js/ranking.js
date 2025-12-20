@@ -118,7 +118,7 @@ export class RankingManager {
                     </div>
                 </div>
                 <div class="ranking-play">
-                    <button class="ranking-play-btn" data-url="${item.url || ''}" data-title="${item.title || ''}" data-type="${item.type || 'local'}">
+                    <button class="ranking-play-btn" data-url="${item.url || ''}" data-title="${item.title || ''}" data-type="${item.type || 'local'}" data-thumbnail_url="${item.thumbnail_url || ''}">
                         ▶
                     </button>
                 </div>
@@ -132,13 +132,25 @@ export class RankingManager {
                 const url = btn.getAttribute('data-url');
                 const title = btn.getAttribute('data-title');
                 const type = btn.getAttribute('data-type');
+                const thumbnail_url = btn.getAttribute('data-thumbnail_url');
                 
                 if (url && title) {
                     try {
-                        await api.play(url, title, type);
-                        Toast.success(i18n.t('ranking.playing') + ': ' + title);
+                        // 添加到默认播放列表的下一曲位置
+                        const response = await api.addSongToPlaylistTop('default', {
+                            url: url,
+                            title: title,
+                            type: type,
+                            thumbnail_url: thumbnail_url
+                        });
+                        
+                        if (response.status === 'OK') {
+                            Toast.success(i18n.t('ranking.addedToPlaylist') + ': ' + title);
+                        } else {
+                            Toast.error(i18n.t('ranking.addFailed') + ': ' + (response.message || '未知错误'));
+                        }
                     } catch (err) {
-                        Toast.error(i18n.t('ranking.playingFailed') + ': ' + err.message);
+                        Toast.error(i18n.t('ranking.addFailed') + ': ' + err.message);
                     }
                 }
             });
