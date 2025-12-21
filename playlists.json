@@ -9,46 +9,6 @@
       "name": "默认歌单",
       "songs": [
         {
-          "url": "ETC/三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
-          "title": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
-          "name": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac",
-          "type": "local",
-          "duration": 0,
-          "ts": 1766204617,
-          "thumbnail_url": null,
-          "artist": "三拜红尘凉 (Live) - 张碧晨、孟佳.flac"
-        },
-        {
-          "url": "https://www.youtube.com/watch?v=NnLk0jOxNlg",
-          "title": "Eating 100 Foods in 24 hours",
-          "name": "Eating 100 Foods in 24 hours",
-          "type": "youtube",
-          "duration": 0,
-          "ts": 1766206521,
-          "thumbnail_url": "https://img.youtube.com/vi/NnLk0jOxNlg/default.jpg",
-          "artist": "Eating 100 Foods in 24 hours"
-        },
-        {
-          "url": "ETC/ラブ・ストーリーは突然に-小田和正.mp3",
-          "title": "ラブ・ストーリーは突然に-小田和正.mp3",
-          "name": "ラブ・ストーリーは突然に-小田和正.mp3",
-          "type": "local",
-          "duration": 0,
-          "ts": 1766204616,
-          "thumbnail_url": null,
-          "artist": "ラブ・ストーリーは突然に-小田和正.mp3"
-        },
-        {
-          "url": "ETC/Take a Bow-Madonna.flac",
-          "title": "Take a Bow-Madonna.flac",
-          "name": "Take a Bow-Madonna.flac",
-          "type": "local",
-          "duration": 0,
-          "ts": 1766204615,
-          "thumbnail_url": null,
-          "artist": "Take a Bow-Madonna.flac"
-        },
-        {
           "url": "ETC/R3hab&蔡依林-Stars Align.flac",
           "title": "R3hab&蔡依林-Stars Align.flac",
           "name": "R3hab&蔡依林-Stars Align.flac",
@@ -57,21 +17,11 @@
           "ts": 1766204615,
           "thumbnail_url": null,
           "artist": "R3hab&蔡依林-Stars Align.flac"
-        },
-        {
-          "url": "ETC/Lament of the Highborne.wav",
-          "title": "Lament of the Highborne.wav",
-          "name": "Lament of the Highborne.wav",
-          "type": "local",
-          "duration": 0,
-          "ts": 1766204614,
-          "thumbnail_url": null,
-          "artist": "Lament of the Highborne.wav"
         }
       ],
-      "song_count": 6,
+      "song_count": 1,
       "created_at": 1766198864.462621,
-      "updated_at": 1766206521.1724293,
+      "updated_at": 1766277672.4583433,
       "current_playing_index": -1
     },
     {

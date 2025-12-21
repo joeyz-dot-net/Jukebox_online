@@ -233,10 +233,10 @@
 			<span class="nav-icon">⚙️</span>
 			<span class="nav-label">设置</span>
 		</button>
-		<!-- <button class="nav-item" id="debugBtn" title="调试面板">
+		<button class="nav-item" id="debugBtn" data-tab="debug" title="调试面板">
 			<span class="nav-icon">🐛</span>
 			<span class="nav-label">调试</span>
-		</button> -->
+		</button>
 	</nav>
 	
 	<footer id="playerBar" class="footer-collapsed" style="display:none;">
@@ -313,111 +313,7 @@
 		</div>
 	</div>
 
-	<!-- Currently Playing Modal -->
-	<div id="nowPlayingModal" class="now-playing-modal" style="display:none;">
-		<div class="now-playing-content">
-			<div class="now-playing-header">
-				<div class="now-playing-header-left">
-					<button class="now-playing-close" id="nowPlayingClose">
-						<svg width="20" height="20" viewBox="0 0 20 20">
-							<path d="M10 8.586L3.707 2.293 2.293 3.707 8.586 10l-6.293 6.293 1.414 1.414L10 11.414l6.293 6.293 1.414-1.414L11.414 10l6.293-6.293-1.414-1.414L10 8.586z" fill="currentColor"/>
-						</svg>
-					</button>
-					<div class="now-playing-status">
-						
-					</div>
-				</div>
-				<button class="now-playing-menu-btn">⋯</button>
-			</div>
 
-			<div class="now-playing-body">
-				<!-- Current Playing Card -->
-				<div class="now-playing-current-card">
-					<div class="current-card-cover">
-						<img id="nowPlayingCover" src="" alt="" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-						<div class="current-card-cover-placeholder">🎵</div>
-					</div>
-					<div class="current-card-info">
-						<div class="current-card-badge">
-							<span class="badge-icon">🔥</span>
-							<span class="badge-text">CURRENTLY PLAYING</span>
-						</div>
-						<div class="current-card-title" id="nowPlayingTitle">未播放</div>
-						<div class="current-card-subtitle" id="nowPlayingSubtitle">--</div>
-						<div class="current-card-meta">
-							<span id="nowPlayingTrackInfo">Track 1 of 1</span>
-						</div>
-						<!-- 当前歌单名称显示 -->
-						<div class="current-playlist-name" id="currentPlaylistName" style="font-weight:bold;font-size:1.1em;margin:8px 0 0 0;color:#2a7;">歌单：--</div>
-						<div class="current-card-next" id="nowPlayingNext">▶ NEXT</div>
-					</div>
-					<button class="current-card-menu">☰</button>
-				</div>
-
-				<!-- Queue List -->
-				<div class="now-playing-queue">
-					<div id="nowPlayingQueueList" class="now-playing-queue-list"></div>
-				</div>
-			</div>
-
-			<div class="now-playing-controls">
-				<div class="now-playing-progress">
-					<span class="progress-time" id="nowPlayingCurrentTime">0:00</span>
-					<div class="progress-bar-container">
-						<div class="progress-bar-track">
-							<div class="progress-bar-fill" id="nowPlayingProgressFill"></div>
-							<div class="progress-bar-thumb" id="nowPlayingProgressThumb"></div>
-						</div>
-					</div>
-					<span class="progress-time" id="nowPlayingDuration">0:00</span>
-				</div>
-				<div class="now-playing-buttons">
-					<button class="control-btn-large" id="nowPlayingShuffleBtn" title="随机播放">
-						<svg width="24" height="24" viewBox="0 0 24 24">
-							<path d="M10.59 9.17L6.12 4.7A1 1 0 0 0 4.7 6.12l4.47 4.47 1.42-1.42zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z" fill="currentColor"/>
-						</svg>
-					</button>
-					<button class="control-btn-large" id="nowPlayingPrevBtn" title="上一首">
-						<svg width="28" height="28" viewBox="0 0 24 24">
-							<path d="M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z" fill="currentColor"/>
-						</svg>
-					</button>
-					<button class="control-btn-play" id="nowPlayingPlayBtn" title="播放/暂停">
-						<svg width="32" height="32" viewBox="0 0 24 24">
-							<path d="M8 5v14l11-7z" fill="currentColor"/>
-						</svg>
-					</button>
-					<button class="control-btn-large" id="nowPlayingNextBtn" title="下一首">
-						<svg width="28" height="28" viewBox="0 0 24 24">
-							<path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6h-2z" fill="currentColor"/>
-						</svg>
-					</button>
-					<button class="control-btn-large" id="nowPlayingRepeatBtn" title="循环模式">
-						<svg width="24" height="24" viewBox="0 0 24 24">
-							<path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z" fill="currentColor"/>
-						</svg>
-					</button>
-				</div>
-				<div class="now-playing-secondary">
-					<button class="secondary-btn" title="歌词">
-						<svg width="20" height="20" viewBox="0 0 24 24">
-							<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z" fill="currentColor"/>
-						</svg>
-					</button>
-					<button class="secondary-btn" title="隔空播放">
-						<svg width="20" height="20" viewBox="0 0 24 24">
-							<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" fill="currentColor"/>
-						</svg>
-					</button>
-					<button class="secondary-btn" title="列表">
-						<svg width="20" height="20" viewBox="0 0 24 24">
-							<path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z" fill="currentColor"/>
-						</svg>
-					</button>
-				</div>
-			</div>
-		</div>
-	</div>
 	
 	<!-- 歌单选择模态框 -->
 	<div id="playlistsModal" class="playlists-modal" style="display:none;">
@@ -462,70 +358,69 @@
 	</div>
 
 	<!-- Debug Modal -->
-	<div id="debugModal" class="modal" style="display:none;">
-		<div class="modal-content" style="overflow-y: auto;">
-			<div class="modal-header">
-				<h3>🐛 调试面板</h3>
-				<button class="modal-close" id="debugModalClose">✕</button>
+	<div id="debugModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a0a0a; display: none; z-index: 9999;">
+		<div style="background: #1e1f24; width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden;">
+			<!-- Header -->
+			<div style="display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #333; flex-shrink: 0; background: #151618;">
+				<h3 style="margin: 0; color: #fff; font-size: 18px;">🐛 调试面板</h3>
+				<button id="debugModalClose" style="background: none; border: none; color: #aaa; font-size: 24px; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; transition: color 0.2s;">✕</button>
 			</div>
-			<div class="modal-body" style="padding: 20px; font-family: monospace; font-size: 12px;">
-				<div id="debugContent">
+			
+			<!-- Content -->
+			<div style="overflow-y: auto; flex: 1; padding: 20px; color: #fff; background: #1e1f24;">
 				
-					<div style="margin-bottom: 20px;">
-						<h4>推流控制</h4>
-						<div style="display: flex; gap: 10px; flex-wrap: wrap;">
-							<button id="startStreamBtn" style="padding: 10px 16px; background: #4CAF50; color: white; border: 2px solid #45a049; border-radius: 4px; cursor: pointer; font-weight: bold;">▶️ 开启推流</button>
-							<button id="stopStreamBtn" style="padding: 10px 16px; background: #f44336; color: white; border: 2px solid #da190b; border-radius: 4px; cursor: pointer; font-weight: bold;">⏹️ 停止推流</button>
-						</div>
-						<p style="margin-top: 10px; color: #aaa;">推流状态: <span id="streamStatusDisplay" style="color: #f44336;">●</span> <span id="streamStatusText">未激活</span></p>
-						<div style="margin-top: 10px; padding: 10px; background: #1a1a1a; border-radius: 4px;">
-							<div style="color: #51cf66; font-size: 12px; line-height: 1.6;">
-								<div>📊 <span id="streamSpeed">速度: -- KB/s</span></div>
-								<div>📈 <span id="streamTotal">总数据: -- MB</span></div>
-								<div>⏱️ <span id="streamDuration">用时: -- s</span></div>
-								<div>👥 <span id="streamClients">活跃客户端: --</span></div>
-								<div>🎵 <span id="streamFormat">格式: --</span></div>
-							
-							
-							</div>
-						</div>
+				<!-- 推流控制 -->
+				<div style="margin-bottom: 20px;">
+					<h4 style="margin: 0 0 10px 0; color: #51cf66; font-size: 14px; font-weight: bold;">推流控制</h4>
+					<div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;">
+						<button id="startStreamBtn" style="padding: 10px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background 0.2s;">▶️ 开启推流</button>
+						<button id="stopStreamBtn" style="padding: 10px 16px; background: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background 0.2s;">⏹️ 停止推流</button>
 					</div>
-					<div style="margin-bottom: 20px;">
-						<h4>播放器状态</h4>
-						<div id="debugPlayer" style="background: #1a1a1a; padding: 10px; border-radius: 4px; overflow-x: auto;"></div>
-					</div>
-					<div style="margin-bottom: 20px;">
-						<h4>歌单信息</h4>
-						<div id="debugPlaylist" style="background: #1a1a1a; padding: 10px; border-radius: 4px; overflow-x: auto;"></div>
-					</div>
-					<div style="margin-bottom: 20px;">
-						<h4>本地存储</h4>
-						<div id="debugStorage" style="background: #1a1a1a; padding: 10px; border-radius: 4px; overflow-x: auto;"></div>
-					</div>
-					<div style="margin-bottom: 20px;">
-						<h4>日志设置</h4>
-						<div style="display: flex; gap: 10px; align-items: center;">
-							<label style="display: flex; align-items: center; gap: 8px; cursor: pointer; color: #aaa;">
-								<input type="checkbox" id="logToggle" style="cursor: pointer; width: 18px; height: 18px;" checked>
-								<span>显示控制台日志</span>
-							</label>
-							<button id="debugClearLogs" style="padding: 8px 16px; background: #ff6b6b; color: white; border: none; border-radius: 4px; cursor: pointer;">清空日志</button>
-						</div>
-					</div>
-					<div style="margin-bottom: 20px;">
-						<h4>控制台日志</h4>
-						<div id="debugLogs" style="background: #1a1a1a; padding: 10px; border-radius: 4px; max-height: 300px; overflow-y: auto;"></div>
-					</div>
-					<button id="debugRefresh" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer;">刷新</button>
-				
-					<div style="margin-bottom: 20px;">
-						<h4>主题设置</h4>
-						<div style="display: flex; gap: 10px;">
-							<button id="themeDarkBtn" style="padding: 8px 16px; background: #333; color: white; border: 2px solid #667eea; border-radius: 4px; cursor: pointer; font-weight: bold;">🌙 暗色</button>
-							<button id="themeLightBtn" style="padding: 8px 16px; background: #e0e0e0; color: #333; border: 2px solid #999; border-radius: 4px; cursor: pointer;">☀️ 亮色</button>
-						</div>
+					<p style="margin: 10px 0; font-size: 12px; color: #aaa;">推流状态: <span id="streamStatusDisplay" style="color: #f44336; font-weight: bold;">●</span> <span id="streamStatusText">未激活</span></p>
+					<div style="padding: 10px; background: #0a0a0a; border-radius: 4px; font-size: 12px; line-height: 1.8; color: #51cf66; font-family: 'Courier New', monospace; border-left: 3px solid #51cf66;">
+						<div>📊 <span id="streamSpeed">速度: --</span></div>
+						<div>📈 <span id="streamTotal">总数据: --</span></div>
+						<div>⏱️ <span id="streamDuration">用时: --</span></div>
+						<div>👥 <span id="streamClients">活跃客户端: --</span></div>
+						<div>🎵 <span id="streamFormat">格式: --</span></div>
 					</div>
 				</div>
+
+				<!-- 播放器状态 -->
+				<div style="margin-bottom: 20px;">
+					<h4 style="margin: 0 0 10px 0; color: #51cf66; font-size: 14px; font-weight: bold;">播放器状态</h4>
+					<div id="debugPlayer" style="background: #0a0a0a; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; color: #51cf66; font-family: 'Courier New', monospace; min-height: 80px; border-left: 3px solid #51cf66;">加载中...</div>
+				</div>
+
+				<!-- 歌单信息 -->
+				<div style="margin-bottom: 20px;">
+					<h4 style="margin: 0 0 10px 0; color: #51cf66; font-size: 14px; font-weight: bold;">歌单信息</h4>
+					<div id="debugPlaylist" style="background: #0a0a0a; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; color: #51cf66; font-family: 'Courier New', monospace; min-height: 80px; border-left: 3px solid #51cf66;">加载中...</div>
+				</div>
+
+				<!-- 本地存储 -->
+				<div style="margin-bottom: 20px;">
+					<h4 style="margin: 0 0 10px 0; color: #51cf66; font-size: 14px; font-weight: bold;">本地存储</h4>
+					<div id="debugStorage" style="background: #0a0a0a; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; color: #51cf66; font-family: 'Courier New', monospace; max-height: 150px; border-left: 3px solid #51cf66;">加载中...</div>
+				</div>
+
+				<!-- 控制台日志 -->
+				<div style="margin-bottom: 20px;">
+					<h4 style="margin: 0 0 10px 0; color: #51cf66; font-size: 14px; font-weight: bold;">控制台日志</h4>
+					<div style="display: flex; gap: 8px; margin-bottom: 10px;">
+						<label style="display: flex; align-items: center; gap: 6px; color: #aaa; font-size: 12px; cursor: pointer;">
+							<input type="checkbox" id="debugLogToggle" checked style="cursor: pointer;">
+							捕获日志
+						</label>
+					</div>
+					<div id="debugLogs" style="background: #0a0a0a; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 11px; color: #51cf66; font-family: 'Courier New', monospace; max-height: 200px; border-left: 3px solid #51cf66; line-height: 1.6;"></div>
+				</div>
+			</div>
+			
+			<!-- Footer -->
+			<div style="display: flex; gap: 10px; flex-wrap: wrap; padding: 15px 20px; border-top: 1px solid #333; flex-shrink: 0; background: #151618;">
+				<button id="debugRefresh" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background 0.2s;">🔄 刷新</button>
+				<button id="debugClearLogs" style="padding: 8px 16px; background: #ff6b6b; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background 0.2s;">🗑️ 清空日志</button>
 			</div>
 		</div>
 	</div>

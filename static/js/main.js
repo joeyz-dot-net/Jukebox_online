@@ -1609,6 +1609,20 @@ class MusicPlayerApp {
                         }
                     }, 310);
                 }
+                // 调试
+                else if (tabName === 'debug') {
+                    previousTab = currentTab;  // 保存当前栏目
+                    const debugModal = document.getElementById('debugModal');
+                    if (debugModal) {
+                        debugModal.style.display = 'flex';
+                        console.log('🐛 调试模态框已显示');
+                        // 延迟刷新，确保DOM已更新
+                        setTimeout(() => {
+                            this.refreshDebugInfo();
+                            this.updateStreamStatus();
+                        }, 100);
+                    }
+                }
                 
                 currentTab = tabName;
             });
@@ -1626,6 +1640,7 @@ class MusicPlayerApp {
                 const rankingModal = document.getElementById('rankingModal');
                 const searchModal = document.getElementById('searchModal');
                 const playlistsModal = document.getElementById('playlistsModal');
+                const debugModal = document.getElementById('debugModal');
                 if (rankingModal) {
                     rankingModal.classList.remove('modal-visible');
                     rankingModal.style.display = 'none';
@@ -1637,6 +1652,9 @@ class MusicPlayerApp {
                 if (playlistsModal) {
                     playlistsModal.classList.remove('modal-visible');
                     playlistsModal.style.display = 'none';
+                }
+                if (debugModal) {
+                    debugModal.style.display = 'none';
                 }
                 
                 settingsBtn.classList.add('active');
@@ -1754,6 +1772,14 @@ class MusicPlayerApp {
                     console.log('🔎 搜索模态框已显示');
                 }
                 break;
+            case 'debug':
+                console.log('🐞 显示调试面板');
+                const debugModal = document.getElementById('debugModal');
+                if (debugModal) {
+                    debugModal.style.display = 'block';
+                    console.log('🐛 调试面板已显示');
+                }
+                break;
         }
     }
 
@@ -1767,6 +1793,23 @@ class MusicPlayerApp {
                     rankingModal.style.display = 'none';
                 }
             });
+        }
+        
+        // 调试模态框关闭 - 支持点击背景和关闭按钮
+        const debugModal = document.getElementById('debugModal');
+        if (debugModal) {
+            debugModal.addEventListener('click', (e) => {
+                if (e.target === debugModal) {
+                    debugModal.style.display = 'none';
+                }
+            });
+            
+            const debugModalClose = document.getElementById('debugModalClose');
+            if (debugModalClose) {
+                debugModalClose.addEventListener('click', () => {
+                    debugModal.style.display = 'none';
+                });
+            }
         }
         
         // 搜索栏目关闭时恢复之前的栏目
@@ -1813,6 +1856,286 @@ class MusicPlayerApp {
         
         // 初始化搜索功能
         searchManager.initUI(() => this.currentPlaylistId, () => this.renderPlaylist());
+        
+        // 初始化调试面板
+        this.initDebugPanel();
+    }
+
+    // 初始化调试面板
+    initDebugPanel() {
+        const debugRefresh = document.getElementById('debugRefresh');
+        const startStreamBtn = document.getElementById('startStreamBtn');
+        const stopStreamBtn = document.getElementById('stopStreamBtn');
+        const debugClearLogs = document.getElementById('debugClearLogs');
+        const debugLogToggle = document.getElementById('debugLogToggle');
+        
+        // 刷新按钮
+        if (debugRefresh) {
+            debugRefresh.addEventListener('click', () => {
+                this.refreshDebugInfo();
+            });
+        }
+        
+        // 推流控制按钮
+        if (startStreamBtn) {
+            startStreamBtn.addEventListener('click', () => {
+                console.log('🔴 调试面板: 启动推流');
+                player.startStream('mp3').catch(err => {
+                    console.error('启动推流失败:', err);
+                });
+            });
+        }
+        
+        if (stopStreamBtn) {
+            stopStreamBtn.addEventListener('click', () => {
+                console.log('🔴 调试面板: 停止推流');
+                player.stopStream().catch(err => {
+                    console.error('停止推流失败:', err);
+                });
+            });
+        }
+        
+        // 清空日志按钮
+        if (debugClearLogs) {
+            debugClearLogs.addEventListener('click', () => {
+                const debugLogs = document.getElementById('debugLogs');
+                if (debugLogs) {
+                    debugLogs.innerHTML = '';
+                }
+                if (window.APP_DEBUG_LOGS) {
+                    window.APP_DEBUG_LOGS = [];
+                }
+            });
+        }
+        
+        // 日志捕获开关
+        if (debugLogToggle) {
+            debugLogToggle.addEventListener('change', (e) => {
+                window.CAPTURE_LOGS = e.target.checked;
+                if (e.target.checked && !window.APP_DEBUG_LOGS) {
+                    window.APP_DEBUG_LOGS = [];
+                    this.setupConsoleHijack();
+                }
+            });
+        }
+        
+        // 初始化日志捕获
+        this.setupConsoleHijack();
+        
+        // 初次显示时刷新信息
+        this.refreshDebugInfo();
+    }
+
+    // 拦截控制台日志
+    setupConsoleHijack() {
+        if (window.CONSOLE_HIJACKED) return;
+        
+        window.APP_DEBUG_LOGS = window.APP_DEBUG_LOGS || [];
+        window.CAPTURE_LOGS = true;
+        window.CONSOLE_HIJACKED = true;
+        
+        const originalLog = console.log;
+        const originalWarn = console.warn;
+        const originalError = console.error;
+        const originalInfo = console.info;
+        const originalDebug = console.debug;
+        
+        const captureLog = (level, args) => {
+            if (!window.CAPTURE_LOGS) return;
+            
+            const timestamp = new Date().toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            let message = '';
+            
+            for (let arg of args) {
+                if (typeof arg === 'object') {
+                    message += JSON.stringify(arg);
+                } else {
+                    message += String(arg);
+                }
+                message += ' ';
+            }
+            
+            const logEntry = `[${timestamp}] [${level}] ${message.trim()}`;
+            window.APP_DEBUG_LOGS.push(logEntry);
+            
+            // 限制日志数量，最多保留500条
+            if (window.APP_DEBUG_LOGS.length > 500) {
+                window.APP_DEBUG_LOGS.shift();
+            }
+            
+            // 更新日志显示
+            const debugLogs = document.getElementById('debugLogs');
+            if (debugLogs) {
+                debugLogs.innerHTML = window.APP_DEBUG_LOGS.map(log => `<div>${this.escapeHtml(log)}</div>`).join('');
+                // 自动滚动到底部
+                debugLogs.scrollTop = debugLogs.scrollHeight;
+            }
+        };
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            captureLog('LOG', args);
+        };
+        
+        console.warn = function(...args) {
+            originalWarn.apply(console, args);
+            captureLog('WARN', args);
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            captureLog('ERROR', args);
+        };
+        
+        console.info = function(...args) {
+            originalInfo.apply(console, args);
+            captureLog('INFO', args);
+        };
+        
+        console.debug = function(...args) {
+            originalDebug.apply(console, args);
+            captureLog('DEBUG', args);
+        };
+    }
+
+    // 转义HTML特殊字符
+    escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // 刷新调试信息
+    refreshDebugInfo() {
+        const debugPlayer = document.getElementById('debugPlayer');
+        const debugPlaylist = document.getElementById('debugPlaylist');
+        const debugStorage = document.getElementById('debugStorage');
+        
+        console.log('[DEBUG] refreshDebugInfo 开始...');
+        console.log('debugPlayer:', debugPlayer);
+        console.log('debugPlaylist:', debugPlaylist);
+        console.log('debugStorage:', debugStorage);
+        
+        // 获取播放器状态
+        const status = player.getStatus();
+        console.log('[DEBUG] player.getStatus():', status);
+        
+        if (debugPlayer) {
+            if (status) {
+                debugPlayer.innerHTML = `<pre style="margin: 0; color: #51cf66;">${JSON.stringify({
+                    paused: status.paused,
+                    currentTime: status.time_pos || 0,
+                    duration: status.duration || 0,
+                    volume: status.volume || 0,
+                    loopMode: status.loop_mode || 0,
+                    currentSong: status.current_meta?.title || status.current_title || 'N/A'
+                }, null, 2)}</pre>`;
+                console.log('[DEBUG] debugPlayer 已更新');
+            } else {
+                debugPlayer.innerHTML = '<pre style="margin: 0; color: #ff6b6b;">无法获取播放器状态</pre>';
+            }
+        } else {
+            console.warn('[DEBUG] debugPlayer 元素不存在');
+        }
+        
+        // 获取歌单信息
+        if (debugPlaylist) {
+            if (playlistManager) {
+                debugPlaylist.innerHTML = `<pre style="margin: 0; color: #51cf66;">${JSON.stringify({
+                    currentPlaylistId: this.currentPlaylistId,
+                    playlistLength: playlistManager.currentPlaylist?.length || 0,
+                    playlistCount: playlistManager.playlists?.length || 0
+                }, null, 2)}</pre>`;
+                console.log('[DEBUG] debugPlaylist 已更新');
+            } else {
+                debugPlaylist.innerHTML = '<pre style="margin: 0; color: #ff6b6b;">playlistManager 未初始化</pre>';
+            }
+        } else {
+            console.warn('[DEBUG] debugPlaylist 元素不存在');
+        }
+        
+        // 获取本地存储信息
+        if (debugStorage) {
+            const storageInfo = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                const value = localStorage.getItem(key);
+                storageInfo[key] = value.length > 100 ? value.substring(0, 100) + '...' : value;
+            }
+            debugStorage.innerHTML = `<pre style="margin: 0; color: #51cf66;">${JSON.stringify(storageInfo, null, 2)}</pre>`;
+            console.log('[DEBUG] debugStorage 已更新');
+        } else {
+            console.warn('[DEBUG] debugStorage 元素不存在');
+        }
+    }
+
+    // 更新推流状态
+    updateStreamStatus() {
+        const streamStatusDisplay = document.getElementById('streamStatusDisplay');
+        const streamStatusText = document.getElementById('streamStatusText');
+        const streamSpeed = document.getElementById('streamSpeed');
+        const streamTotal = document.getElementById('streamTotal');
+        const streamDuration = document.getElementById('streamDuration');
+        const streamClients = document.getElementById('streamClients');
+        const streamFormat = document.getElementById('streamFormat');
+        
+        console.log('[DEBUG] updateStreamStatus 开始...');
+        
+        // 获取推流状态
+        fetch('/stream/status')
+            .then(res => res.json())
+            .then(data => {
+                console.log('[DEBUG] /stream/status 响应:', data);
+                
+                if (data.status === 'OK' && data.data) {
+                    const streamData = data.data;
+                    
+                    if (streamStatusDisplay) {
+                        streamStatusDisplay.textContent = streamData.is_active ? '●' : '●';
+                        streamStatusDisplay.style.color = streamData.is_active ? '#51cf66' : '#f44336';
+                    }
+                    
+                    if (streamStatusText) {
+                        streamStatusText.textContent = streamData.status_text || '未激活';
+                        streamStatusText.style.color = streamData.is_active ? '#51cf66' : '#f44336';
+                    }
+                    
+                    if (streamSpeed) {
+                        streamSpeed.innerHTML = `速度: <strong>${(streamData.avg_speed || 0).toFixed(2)} KB/s</strong>`;
+                        streamSpeed.style.color = '#51cf66';
+                    }
+                    if (streamTotal) {
+                        streamTotal.innerHTML = `总数据: <strong>${(streamData.total_mb || 0).toFixed(2)} MB</strong>`;
+                        streamTotal.style.color = '#51cf66';
+                    }
+                    if (streamDuration) {
+                        streamDuration.innerHTML = `用时: <strong>${streamData.duration || 0}s</strong>`;
+                        streamDuration.style.color = '#51cf66';
+                    }
+                    if (streamClients) {
+                        streamClients.innerHTML = `活跃客户端: <strong>${streamData.active_clients || 0}</strong>`;
+                        streamClients.style.color = '#51cf66';
+                    }
+                    if (streamFormat) {
+                        streamFormat.innerHTML = `格式: <strong>${streamData.format || '--'}</strong>`;
+                        streamFormat.style.color = '#51cf66';
+                    }
+                    
+                    console.log('[DEBUG] 推流状态已更新');
+                }
+            })
+            .catch(err => {
+                console.warn('[调试] 获取推流状态失败:', err);
+                if (streamStatusText) {
+                    streamStatusText.textContent = '无法获取状态';
+                    streamStatusText.style.color = '#ff9800';
+                }
+                if (streamSpeed) streamSpeed.textContent = '速度: --';
+                if (streamTotal) streamTotal.textContent = '总数据: --';
+                if (streamDuration) streamDuration.textContent = '用时: --';
+                if (streamClients) streamClients.textContent = '客户端: --';
+                if (streamFormat) streamFormat.textContent = '格式: --';
+            });
     }
 
     // 处理进度条点击（旧版本，已被上面的新版本替代）
