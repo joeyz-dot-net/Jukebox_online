@@ -98,6 +98,26 @@ button:hover { background: var(--button-hover-bg); border-color: var(--button-ho
 }
 .track-menu-btn:hover { background: #1a1a1a; color: #fff; }
 
+/* 拖拽手柄 */
+.drag-handle {
+    color: #555;
+}
+.drag-handle:active {
+    color: #fff;
+}
+
+/* 拖拽占位符 */
+.drag-placeholder {
+    background: rgba(74, 158, 255, 0.1);
+    border-color: #4a9eff;
+}
+
+/* 拖拽中的元素 */
+.playlist-track-item.dragging {
+    background: #222;
+    border-color: #4a9eff;
+}
+
 .bottom-nav {
     background: var(--bg-primary);
     border-top-color: var(--border-color);

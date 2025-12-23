@@ -99,9 +99,29 @@ body.theme-light {
     color: #1a1a1a !important;
 }
 
+/* 拖拽手柄 - 亮色主题 */
+#playlist.theme-light .drag-handle {
+    color: #aaaaaa !important;
+}
+#playlist.theme-light .drag-handle:active {
+    color: #333333 !important;
+}
+#playlist.theme-light .drag-placeholder {
+    background: rgba(59, 130, 246, 0.1) !important;
+    border-color: #3b82f6 !important;
+}
+#playlist.theme-light .playlist-track-item.dragging {
+    background: #ffffff !important;
+    border-color: #3b82f6 !important;
+}
+
 /* 歌单管理模态框主题 */
 /* 亮色主题 */
 #playlistsModal.bright-theme {
+    background: #ffffff;
+}
+
+#playlistsModal.bright-theme .playlists-modal {
     background: #ffffff;
 }
 

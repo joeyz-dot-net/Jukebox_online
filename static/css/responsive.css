@@ -22,7 +22,7 @@
     
     /* 播放列表 */
     .playlist-track-item {
-        gap: 12px;
+        gap: 8px;
         padding: 10px;
         margin-bottom: 6px;
     }
@@ -49,6 +49,18 @@
     .track-menu-btn {
         width: 32px;
         height: 32px;
+    }
+    
+    /* 拖拽手柄 - 移动端放大触摸区域 */
+    .drag-handle {
+        width: 32px;
+        height: 48px;
+        min-width: 32px;
+        opacity: 0.6;
+    }
+    .drag-handle svg {
+        width: 18px;
+        height: 18px;
     }
 
     /* 歌单管理卡片尺寸（平板） */
@@ -169,6 +181,17 @@
         max-height: 55px;
     }
     .track-type { font-size: 10px; }
+    
+    /* 拖拽手柄 - 超小屏幕 */
+    .drag-handle {
+        width: 28px;
+        height: 44px;
+        min-width: 28px;
+    }
+    .drag-handle svg {
+        width: 16px;
+        height: 16px;
+    }
 
     .track-seq {
         right: 8px;
@@ -264,6 +287,17 @@
     .track-type { font-size: 10px; }
     .track-meta { gap: 4px; font-size: 11px; }
     .track-playlist-name { max-width: 60px; }
+    
+    /* 拖拽手柄 - iPhone 最小化宽度 */
+    .drag-handle {
+        width: 24px;
+        height: 40px;
+        min-width: 24px;
+    }
+    .drag-handle svg {
+        width: 14px;
+        height: 14px;
+    }
 
     .track-seq {
         right: 8px;

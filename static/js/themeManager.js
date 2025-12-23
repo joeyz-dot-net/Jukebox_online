@@ -128,7 +128,21 @@ export class ThemeManager {
      * @returns {array} 主题列表
      */
     getAvailableThemes() {
-        return ['dark', 'light'];
+        return ['auto', 'dark', 'light'];
+    }
+    
+    /**
+     * 根据时间获取实际主题
+     * @param {string} theme - 主题设置 (auto/dark/light)
+     * @returns {string} 实际主题 (dark/light)
+     */
+    getActualTheme(theme) {
+        if (theme === 'auto') {
+            const hour = new Date().getHours();
+            // 6:00 - 18:00 使用亮色主题，其他时间使用暗色主题
+            return (hour >= 6 && hour < 18) ? 'light' : 'dark';
+        }
+        return theme;
     }
 }
 

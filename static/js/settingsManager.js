@@ -11,7 +11,7 @@ import { api } from './api.js';
 export const settingsManager = {
     // 默认设置
     DEFAULT_SETTINGS: {
-        'theme': 'dark',
+        'theme': 'auto',
         'auto_stream': false,
         'stream_volume': '50',
         'language': 'auto',
@@ -553,20 +553,29 @@ export const settingsManager = {
             theme = this.getSettings('theme') || 'dark';
         }
         
-        console.log(`[设置] 准备应用主题: ${theme}`);
+        // 如果是自动模式，根据时间决定主题
+        let actualTheme = theme;
+        if (theme === 'auto') {
+            const hour = new Date().getHours();
+            // 6:00 - 18:00 使用亮色主题，其他时间使用暗色主题
+            actualTheme = (hour >= 6 && hour < 18) ? 'light' : 'dark';
+            console.log(`[设置] 自动主题模式: 当前时间 ${hour}:00, 使用 ${actualTheme} 主题`);
+        }
+        
+        console.log(`[设置] 准备应用主题: ${actualTheme}`);
         
         // 调用 themeManager 加载主题 CSS 和应用主题 class
         if (themeManager) {
-            themeManager.loadTheme(theme, () => {
-                console.log(`[设置] themeManager 已应用主题: ${theme}`);
+            themeManager.loadTheme(actualTheme, () => {
+                console.log(`[设置] themeManager 已应用主题: ${actualTheme}`);
             });
         }
         
         // 应用 data-theme 属性
-        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.setAttribute('data-theme', actualTheme);
         
         // 统一的主题类名
-        const themeClass = theme === 'light' ? 'theme-light' : 'theme-dark';
+        const themeClass = actualTheme === 'light' ? 'theme-light' : 'theme-dark';
         
         // 应用 body 类名
         const body = document.body;

@@ -41,6 +41,14 @@
 			height: calc(100% - (2/5 * 100%));
 		}
 		
+		/* 禁止页面拖拽移动 */
+		html, body {
+			position: fixed;
+			overflow: hidden;
+			width: 100%;
+			height: 100%;
+		}
+		
 		/* 推流指示器脉冲动画 */
 		@keyframes pulse {
 			0% {
@@ -421,6 +429,7 @@
 					<div class="settings-item">
 						<label class="settings-label">主题样式</label>
 						<select id="themeSetting" class="settings-select">
+							<option value="auto">自动 (根据时间)</option>
 							<option value="dark">深色主题</option>
 							<option value="light">浅色主题</option>
 						</select>

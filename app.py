@@ -1450,9 +1450,10 @@ async def playlist_reorder(request: Request):
         data = await request.json()
         from_index = data.get("from_index")
         to_index = data.get("to_index")
+        playlist_id = data.get("playlist_id", CURRENT_PLAYLIST_ID)  # 支持指定歌单
         
         if from_index is not None and to_index is not None:
-            playlist = PLAYLISTS_MANAGER.get_playlist(CURRENT_PLAYLIST_ID)
+            playlist = PLAYLISTS_MANAGER.get_playlist(playlist_id)
             if playlist and 0 <= from_index < len(playlist.songs) and 0 <= to_index < len(playlist.songs):
                 song = playlist.songs.pop(from_index)
                 playlist.songs.insert(to_index, song)

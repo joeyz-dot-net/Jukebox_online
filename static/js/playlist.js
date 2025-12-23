@@ -156,6 +156,48 @@ export class PlaylistManager {
 // 导出单例
 export const playlistManager = new PlaylistManager();
 
+// ✅ 点击歌曲：移动到队列顶部并播放
+async function moveToTopAndPlay(song, currentIndex, onPlay, rerenderArgs) {
+    try {
+        const selectedPlaylistId = playlistManager.getSelectedPlaylistId();
+        
+        console.log('[播放列表] 点击歌曲，移动到顶部并播放:', {
+            title: song.title,
+            currentIndex: currentIndex,
+            selectedPlaylistId: selectedPlaylistId
+        });
+        
+        // 如果不是第一首，先移动到顶部
+        if (currentIndex > 0) {
+            const result = await api.reorderPlaylist(selectedPlaylistId, currentIndex, 0);
+            if (result.status !== 'OK') {
+                console.error('[播放列表] 移动失败:', result);
+                Toast.error('移动失败');
+                return;
+            }
+            console.log('[播放列表] ✓ 已移动到队列顶部');
+        }
+        
+        // 刷新数据
+        await playlistManager.loadCurrent();
+        await playlistManager.loadAll();
+        
+        // 播放歌曲（现在已经在索引0）
+        if (onPlay) {
+            onPlay(song);
+        }
+        
+        // 重新渲染列表
+        if (rerenderArgs) {
+            renderPlaylistUI(rerenderArgs);
+        }
+        
+    } catch (error) {
+        console.error('[播放列表] 操作失败:', error);
+        Toast.error('操作失败: ' + error.message);
+    }
+}
+
 // ✅ 新增：从当前选择歌单点击歌曲播放
 export async function playSongFromSelectedPlaylist(song, onPlay) {
     try {
@@ -347,6 +389,20 @@ export function renderPlaylistUI({ container, titleEl, onPlay, currentMeta }) {
             seqEl.textContent = `${index + 1}/${playlist.length}`;
             item.appendChild(seqEl);
         } else {
+            // 添加拖拽手柄（移动端触摸拖拽）
+            const dragHandle = document.createElement('div');
+            dragHandle.className = 'drag-handle';
+            dragHandle.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="9" cy="5" r="2"/>
+                    <circle cx="15" cy="5" r="2"/>
+                    <circle cx="9" cy="12" r="2"/>
+                    <circle cx="15" cy="12" r="2"/>
+                    <circle cx="9" cy="19" r="2"/>
+                    <circle cx="15" cy="19" r="2"/>
+                </svg>
+            `;
+            
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'track-menu-btn';
             deleteBtn.innerHTML = `
@@ -372,17 +428,250 @@ export function renderPlaylistUI({ container, titleEl, onPlay, currentMeta }) {
             item.appendChild(leftContainer);
             item.appendChild(info);
             item.appendChild(deleteBtn);
+            item.appendChild(dragHandle);
         }
 
-        item.addEventListener('click', async () => {
-            // ✅ 使用新的播放逻辑
-            await playSongFromSelectedPlaylist(song, onPlay);
+        item.addEventListener('click', async (e) => {
+            // 如果点击的是拖拽手柄，不触发播放
+            if (e.target.closest('.drag-handle')) return;
+            // 如果点击的是删除按钮，不触发播放
+            if (e.target.closest('.track-menu-btn')) return;
+            
+            // ✅ 点击歌曲：移动到队列顶部并播放
+            await moveToTopAndPlay(song, index, onPlay, { container, titleEl, onPlay, currentMeta });
         });
 
         container.appendChild(item);
     });
 
-    // 拖拽排序已关闭
+    // 初始化触摸拖拽排序
+    initTouchDragSort(container, renderPlaylistUI, { container, titleEl, onPlay, currentMeta });
+}
+
+// 触摸拖拽排序 - 移动端优化
+function initTouchDragSort(container, rerenderFn, rerenderArgs) {
+    let draggedItem = null;
+    let draggedIndex = -1;
+    let placeholder = null;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    let isDragging = false;
+    let longPressTimer = null;
+    const LONG_PRESS_DURATION = 300; // 长按300ms触发拖拽
+    const DRAG_THRESHOLD = 10; // 拖拽阈值（像素）
+
+    // 创建占位符
+    function createPlaceholder() {
+        const el = document.createElement('div');
+        el.className = 'drag-placeholder';
+        return el;
+    }
+
+    // 获取拖拽手柄
+    container.querySelectorAll('.drag-handle').forEach((handle, idx) => {
+        const item = handle.closest('.playlist-track-item');
+        if (!item) return;
+
+        // 触摸开始
+        handle.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            touchStartY = e.touches[0].clientY;
+            touchStartTime = Date.now();
+            draggedItem = item;
+            draggedIndex = parseInt(item.dataset.index);
+
+            // 长按检测
+            longPressTimer = setTimeout(() => {
+                startDrag(e);
+            }, LONG_PRESS_DURATION);
+        }, { passive: false });
+
+        // 触摸移动
+        handle.addEventListener('touchmove', (e) => {
+            if (!draggedItem) return;
+
+            const touch = e.touches[0];
+            const moveDistance = Math.abs(touch.clientY - touchStartY);
+
+            // 如果移动距离超过阈值，立即开始拖拽
+            if (!isDragging && moveDistance > DRAG_THRESHOLD) {
+                clearTimeout(longPressTimer);
+                startDrag(e);
+            }
+
+            if (isDragging) {
+                e.preventDefault();
+                moveDrag(e);
+            }
+        }, { passive: false });
+
+        // 触摸结束
+        handle.addEventListener('touchend', (e) => {
+            clearTimeout(longPressTimer);
+            if (isDragging) {
+                endDrag(e);
+            }
+            resetDragState();
+        });
+
+        // 触摸取消
+        handle.addEventListener('touchcancel', () => {
+            clearTimeout(longPressTimer);
+            cancelDrag();
+            resetDragState();
+        });
+    });
+
+    function startDrag(e) {
+        if (isDragging || !draggedItem) return;
+        isDragging = true;
+
+        // 添加拖拽中样式
+        draggedItem.classList.add('dragging');
+        document.body.style.overflow = 'hidden'; // 禁止滚动
+
+        // 创建占位符
+        placeholder = createPlaceholder();
+        placeholder.style.height = draggedItem.offsetHeight + 'px';
+        draggedItem.parentNode.insertBefore(placeholder, draggedItem);
+
+        // 设置拖拽元素样式
+        const rect = draggedItem.getBoundingClientRect();
+        draggedItem.style.position = 'fixed';
+        draggedItem.style.left = rect.left + 'px';
+        draggedItem.style.top = rect.top + 'px';
+        draggedItem.style.width = rect.width + 'px';
+        draggedItem.style.zIndex = '9999';
+
+        // 触觉反馈（如果支持）
+        if (navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+    }
+
+    function moveDrag(e) {
+        if (!isDragging || !draggedItem) return;
+
+        const touch = e.touches[0];
+        const deltaY = touch.clientY - touchStartY;
+        
+        // 移动拖拽元素
+        const originalTop = parseFloat(draggedItem.dataset.originalTop || draggedItem.style.top);
+        if (!draggedItem.dataset.originalTop) {
+            draggedItem.dataset.originalTop = draggedItem.style.top;
+        }
+        draggedItem.style.top = (parseFloat(draggedItem.dataset.originalTop) + deltaY) + 'px';
+
+        // 检测放置位置
+        const items = Array.from(container.querySelectorAll('.playlist-track-item:not(.dragging)'));
+        let insertBefore = null;
+        
+        for (const item of items) {
+            const rect = item.getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            
+            if (touch.clientY < midY) {
+                insertBefore = item;
+                break;
+            }
+        }
+
+        // 移动占位符
+        if (insertBefore && insertBefore !== placeholder.nextSibling) {
+            container.insertBefore(placeholder, insertBefore);
+        } else if (!insertBefore && placeholder.nextSibling) {
+            container.appendChild(placeholder);
+        }
+    }
+
+    async function endDrag(e) {
+        if (!isDragging || !draggedItem || !placeholder) return;
+
+        // 计算新位置
+        const items = Array.from(container.querySelectorAll('.playlist-track-item:not(.dragging)'));
+        let newIndex = items.indexOf(placeholder.nextSibling ? 
+            items.find(item => item === placeholder.nextSibling) : null);
+        
+        if (newIndex === -1) {
+            newIndex = items.length;
+        }
+        
+        // 调整索引（考虑占位符位置）
+        const placeholderIndex = Array.from(container.children).indexOf(placeholder);
+        const draggedItemOriginalIndex = draggedIndex;
+        
+        // 计算实际的新索引
+        let actualNewIndex = 0;
+        const allChildren = Array.from(container.children);
+        for (let i = 0; i < allChildren.length; i++) {
+            if (allChildren[i] === placeholder) {
+                actualNewIndex = i;
+                break;
+            }
+        }
+        
+        // 移除占位符，恢复拖拽元素
+        placeholder.remove();
+        draggedItem.classList.remove('dragging');
+        draggedItem.style.position = '';
+        draggedItem.style.left = '';
+        draggedItem.style.top = '';
+        draggedItem.style.width = '';
+        draggedItem.style.zIndex = '';
+        delete draggedItem.dataset.originalTop;
+
+        // 如果位置变化了，调用 API 更新顺序
+        if (actualNewIndex !== draggedItemOriginalIndex) {
+            try {
+                const selectedPlaylistId = playlistManager.getSelectedPlaylistId();
+                const result = await api.reorderPlaylist(selectedPlaylistId, draggedItemOriginalIndex, actualNewIndex);
+                
+                if (result.status === 'OK') {
+                    Toast.success('已调整顺序');
+                    // 先刷新数据，再重新渲染列表
+                    await playlistManager.loadCurrent();
+                    await playlistManager.loadAll();
+                    rerenderFn(rerenderArgs);
+                } else {
+                    Toast.error('调整失败: ' + (result.error || result.message));
+                    await playlistManager.loadCurrent();
+                    await playlistManager.loadAll();
+                    rerenderFn(rerenderArgs);
+                }
+            } catch (err) {
+                console.error('调整顺序失败:', err);
+                Toast.error('调整失败');
+                await playlistManager.loadCurrent();
+                await playlistManager.loadAll();
+                rerenderFn(rerenderArgs);
+            }
+        }
+    }
+
+    function cancelDrag() {
+        if (placeholder) {
+            placeholder.remove();
+        }
+        if (draggedItem) {
+            draggedItem.classList.remove('dragging');
+            draggedItem.style.position = '';
+            draggedItem.style.left = '';
+            draggedItem.style.top = '';
+            draggedItem.style.width = '';
+            draggedItem.style.zIndex = '';
+            delete draggedItem.dataset.originalTop;
+        }
+    }
+
+    function resetDragState() {
+        draggedItem = null;
+        draggedIndex = -1;
+        placeholder = null;
+        isDragging = false;
+        document.body.style.overflow = '';
+    }
 }
 
 // 兼容性导出，确保可被按名导入

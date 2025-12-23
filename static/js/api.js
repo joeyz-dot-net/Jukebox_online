@@ -135,8 +135,9 @@ export class MusicAPI {
         return this.postForm('/playlist_remove', formData);
     }
 
-    async reorderPlaylist(fromIndex, toIndex) {
+    async reorderPlaylist(playlistId, fromIndex, toIndex) {
         return this.post('/playlist_reorder', {
+            playlist_id: playlistId,
             from_index: fromIndex,
             to_index: toIndex
         });
