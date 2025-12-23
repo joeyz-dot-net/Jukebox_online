@@ -251,6 +251,8 @@ app.add_middleware(
 async def startup_event():
     """应用启动时的初始化事件"""
     logger.info("应用启动完成")
+    # 启动播放进度监控任务
+    asyncio.create_task(monitor_playback_progress())
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -289,6 +291,51 @@ async def shutdown_event():
             logger.error(f"关闭时清理 FFmpeg 失败: {e}")
     
     logger.info("应用已关闭")
+
+async def monitor_playback_progress():
+    """监控播放进度，定期输出日志"""
+    logger.info("🎵 播放进度监控任务已启动")
+    
+    while True:
+        await asyncio.sleep(5)  # 每 5 秒检查一次
+        
+        # 仅在有歌曲播放时输出
+        if not PLAYER.current_meta or not PLAYER.current_meta.get("url"):
+            continue
+        
+        try:
+            # 获取 MPV 状态
+            paused = mpv_get("pause")
+            time_pos = mpv_get("time-pos") or 0
+            duration = mpv_get("duration") or 0
+            volume = mpv_get("volume") or 0
+            
+            # 格式化时间显示
+            def format_time(seconds):
+                mins = int(seconds // 60)
+                secs = int(seconds % 60)
+                return f"{mins:02d}:{secs:02d}"
+            
+            # 获取歌曲信息
+            title = PLAYER.current_meta.get("title", "未知歌曲")
+            song_type = PLAYER.current_meta.get("type", "unknown")
+            
+            # 计算进度百分比
+            progress_percent = (time_pos / duration * 100) if duration > 0 else 0
+            
+            # 输出监控日志（INFO 级别，便于查看）
+            logger.info(
+                f"🎵 [播放监控] "
+                f"{title} | "
+                f"{'⏸️ 暂停' if paused else '▶️ 播放中'} | "
+                f"进度: {format_time(time_pos)}/{format_time(duration)} ({progress_percent:.1f}%) | "
+                f"音量: {int(volume)}% | "
+                f"类型: {song_type}"
+            )
+            
+        except Exception as e:
+            logger.warning(f"监控任务异常: {e}")
+            continue
 
 # ============================================
 # 挂载静态文件
@@ -587,18 +634,40 @@ async def prev_track():
 async def get_status():
     """获取播放器状态"""
     playlist = PLAYLISTS_MANAGER.get_playlist(CURRENT_PLAYLIST_ID)
+    
+    # 获取 MPV 状态
+    mpv_state = {
+        "paused": mpv_get("pause"),
+        "time_pos": mpv_get("time-pos"),
+        "duration": mpv_get("duration"),
+        "volume": mpv_get("volume")
+    }
+    
+    # DEBUG 日志：显示当前播放歌曲状态
+    if PLAYER.current_meta and PLAYER.current_meta.get("url"):
+        title = PLAYER.current_meta.get("title", "N/A")
+        song_type = PLAYER.current_meta.get("type", "N/A")
+        paused = mpv_state.get("paused", False)
+        time_pos = mpv_state.get("time_pos", 0) or 0
+        duration = mpv_state.get("duration", 0) or 0
+        volume = mpv_state.get("volume", 0) or 0
+        
+        logger.debug(
+            f"🎵 [播放状态] "
+            f"歌曲: {title} | "
+            f"类型: {song_type} | "
+            f"状态: {'暂停' if paused else '播放中'} | "
+            f"进度: {int(time_pos)}/{int(duration)}s | "
+            f"音量: {int(volume)}%"
+        )
+    
     return {
         "status": "OK",
         "current_meta": PLAYER.current_meta,
         "current_playlist_id": CURRENT_PLAYLIST_ID,
         "current_playlist_name": playlist.name if playlist else "--",
         "loop_mode": PLAYER.loop_mode,
-        "mpv_state": {
-            "paused": mpv_get("pause"),
-            "time_pos": mpv_get("time-pos"),
-            "duration": mpv_get("duration"),
-            "volume": mpv_get("volume")
-        }
+        "mpv_state": mpv_state
     }
 
 @app.post("/pause")
