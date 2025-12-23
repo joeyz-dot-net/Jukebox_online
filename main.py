@@ -113,7 +113,7 @@ def interactive_select_audio_device(mpv_path: str = "mpv", timeout: int = 10) ->
             print(f"  [{idx}] {device_name}")
             print(f"       设备ID: {device_id}")
     
-    print(f"\n{YELLOW}⏱️  {timeout}秒后自动选择默认项: {default_name}{RESET}")
+    print(f"\n⏱️  {timeout}秒后自动选择默认项: {default_name}{RESET}")
     print("─" * 60)
     
     # 使用线程实现超时输入和倒计时显示
@@ -121,21 +121,12 @@ def interactive_select_audio_device(mpv_path: str = "mpv", timeout: int = 10) ->
     countdown_active = [True]
     
     def show_countdown():
-        """显示倒计时进度条"""
+        """显示倒计时"""
         import time
         remaining = timeout
-        bar_length = 20
         while remaining > 0 and countdown_active[0] and selected[0] is None:
-            progress = remaining / timeout
-            filled = int(bar_length * progress)
-            bar = '=' * filled + '>' + '-' * (bar_length - filled - 1)
-            print(f"\r{YELLOW}[{bar}] {remaining:2d}/{timeout}秒{RESET}", end='', flush=True)
             time.sleep(1)
             remaining -= 1
-        
-        if countdown_active[0] and selected[0] is None:
-            bar = '=' * bar_length + '>'
-            print(f"\r{YELLOW}[{bar}] 自动选择！{RESET}")
     
     def get_input():
         try:
@@ -219,12 +210,10 @@ def interactive_select_streaming_mode(timeout: int = 10) -> bool:
     print("\n请选择音频输出模式:\n")
     print(f"  {GREEN}{BOLD}► [1] 本地播放 - 播放到本机音频设备 ✓{RESET}")
     print(f"      {CYAN}✓ 直接播放，无延迟{RESET}")
-    print(f"      {RED}✗ 无法推流到浏览器{RESET}")
     print("")
     print(f"  [2] 推流模式 - 通过 VB-Cable + FFmpeg 推流到浏览器")
-    print(f"      {CYAN}✓ 支持浏览器播放{RESET}")
-    print(f"      {YELLOW}⚠️  需要安装 VB-Cable 和 FFmpeg{RESET}")    
-    print(f"\n{YELLOW}⏱️  {timeout}秒后自动选择: 本地播放模式{RESET}")
+    print(f"      ✓ 支持浏览器播放{RESET}")
+    print(f"\n⏱️  {timeout}秒后自动选择: 本地播放模式{RESET}")
     print("─" * 60)
     
     # 使用线程实现超时输入和倒计时显示
@@ -232,21 +221,12 @@ def interactive_select_streaming_mode(timeout: int = 10) -> bool:
     countdown_active = [True]
     
     def show_countdown():
-        """显示倒计时进度条"""
+        """显示倒计时"""
         import time
         remaining = timeout
-        bar_length = 20
         while remaining > 0 and countdown_active[0] and selected[0] is None:
-            progress = remaining / timeout
-            filled = int(bar_length * progress)
-            bar = '=' * filled + '>' + '-' * (bar_length - filled - 1)
-            print(f"\r{YELLOW}[{bar}] {remaining:2d}/{timeout}秒{RESET}", end='', flush=True)
             time.sleep(1)
             remaining -= 1
-        
-        if countdown_active[0] and selected[0] is None:
-            bar = '=' * bar_length + '>'
-            print(f"\r{YELLOW}[{bar}] 自动选择！{RESET}")
     
     def get_input():
         try:

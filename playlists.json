@@ -1,6 +1,7 @@
 {
   "order": [
-    "default"
+    "default",
+    "1766466097240"
   ],
   "playlists": [
     {
@@ -51,6 +52,15 @@
       "song_count": 4,
       "created_at": 1766369731.0493586,
       "updated_at": 1766455994.7959876,
+      "current_playing_index": -1
+    },
+    {
+      "id": "1766466097240",
+      "name": "22",
+      "songs": [],
+      "song_count": 0,
+      "created_at": 1766466097.2409408,
+      "updated_at": 1766466097.2409408,
       "current_playing_index": -1
     }
   ]

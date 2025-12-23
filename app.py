@@ -46,19 +46,38 @@ from models import (
     HitRank,
 )
 
-from models.stream import (
-    start_ffmpeg_stream,
-    stop_ffmpeg_stream,
-    register_client,
-    unregister_client,
-    get_mime_type as stream_get_mime_type,
-    cleanup_ffmpeg_processes,
-    ACTIVE_CLIENTS,
-    FFMPEG_PROCESS,
-    FFMPEG_FORMAT,
-    STREAM_STATS,
-    STREAMING_ENABLED,  # 【新增】全局推流启用开关
-)
+# 【推流模块】延迟导入，由 main.py 根据用户选择决定是否加载
+# 如果启用推流，main.py 会在导入 app 之前设置 os.environ["ENABLE_STREAMING"] = "true"
+# 此时动态导入 stream 模块
+STREAMING_ENABLED = os.environ.get("ENABLE_STREAMING", "false").lower() in ("true", "1", "yes", "on")
+
+if STREAMING_ENABLED:
+    from models.stream import (
+        start_ffmpeg_stream,
+        stop_ffmpeg_stream,
+        register_client,
+        unregister_client,
+        get_mime_type as stream_get_mime_type,
+        cleanup_ffmpeg_processes,
+        ACTIVE_CLIENTS,
+        FFMPEG_PROCESS,
+        FFMPEG_FORMAT,
+        STREAM_STATS,
+    )
+    logger.info("✓ 推流模块已加载")
+else:
+    # 推流未启用，创建空的占位符以避免 NameError
+    start_ffmpeg_stream = None
+    stop_ffmpeg_stream = None
+    register_client = None
+    unregister_client = None
+    stream_get_mime_type = None
+    cleanup_ffmpeg_processes = None
+    ACTIVE_CLIENTS = {}
+    FFMPEG_PROCESS = None
+    FFMPEG_FORMAT = None
+    STREAM_STATS = {}
+    logger.info("⊘ 推流模块未加载（用户未启用）")
 
 from models.settings import initialize_settings
 
@@ -260,13 +279,14 @@ async def shutdown_event():
         except:
             pass
     
-    # 清理 FFmpeg 进程
-    try:
-        stop_ffmpeg_stream()
-        cleanup_ffmpeg_processes()
-        logger.info("✅ FFmpeg 进程已清理")
-    except Exception as e:
-        logger.error(f"关闭时清理 FFmpeg 失败: {e}")
+    # 清理 FFmpeg 进程（仅在推流启用时）
+    if STREAMING_ENABLED:
+        try:
+            stop_ffmpeg_stream()
+            cleanup_ffmpeg_processes()
+            logger.info("✅ FFmpeg 进程已清理")
+        except Exception as e:
+            logger.error(f"关闭时清理 FFmpeg 失败: {e}")
     
     logger.info("应用已关闭")
 
@@ -366,7 +386,6 @@ async def play(request: Request):
         stream_started = False
         if STREAMING_ENABLED:
             try:
-                from models.stream import start_ffmpeg_stream
                 start_ffmpeg_stream(audio_format=stream_format)
                 stream_started = True
             except Exception as e:
@@ -2006,13 +2025,15 @@ async def stream_control(request: Request):
             stop_ffmpeg_stream()
             # 延迟清理，避免进程冲突
             await asyncio.sleep(0.5)
-            cleanup_ffmpeg_processes()
+            if cleanup_ffmpeg_processes:
+                cleanup_ffmpeg_processes()
             return JSONResponse({"status": "OK", "message": "推流已停止"})
         elif action == "restart":
             # 安全重启：先停止，清理，再启动
             stop_ffmpeg_stream()
             await asyncio.sleep(0.5)
-            cleanup_ffmpeg_processes()
+            if cleanup_ffmpeg_processes:
+                cleanup_ffmpeg_processes()
             await asyncio.sleep(0.5)
             if start_ffmpeg_stream(audio_format=format_type):
                 return JSONResponse({"status": "OK", "message": f"推流已重启 ({format_type})"})
