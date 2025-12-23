@@ -69,15 +69,15 @@ def interactive_select_audio_device(mpv_path: str = "mpv", timeout: int = 10) ->
     返回:
         设备ID (device_id 或 'auto')
     """
-    print("\n" + "=" * 60)
-    print("🎧 音频输出设备选择")
-    print("=" * 60)
+    print("\n" + "╔" + "═" * 58 + "╗")
+    print("║" + " " * 18 + "🎧 音频输出设备选择" + " " * 18 + "║")
+    print("╚" + "═" * 58 + "╝")
     
     devices = get_mpv_audio_devices(mpv_path)
     
     if not devices:
         print("\n❌ 未检测到音频设备，将使用系统默认")
-        print("-" * 60)
+        print("─" * 60)
         return "auto"
     
     # 查找 VB-Cable 设备作为默认选项
@@ -89,27 +89,65 @@ def interactive_select_audio_device(mpv_path: str = "mpv", timeout: int = 10) ->
             default_name = device_name
             break
     
-    print(f"\n检测到 {len(devices)} 个音频设备:\n")
-    print("  [0] 系统默认设备 (auto)")
+    # ANSI 颜色码
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    CYAN = '\033[96m'
+    BOLD = '\033[1m'
+    RESET = '\033[0m'
+    
+    print(f"\n检测到 {CYAN}{len(devices)}{RESET} 个音频设备:\n")
+    
+    # 显示选项 [0]
+    if default_choice == 0:
+        print(f"  {GREEN}{BOLD}► [0] 系统默认设备 (auto) ✓{RESET}")
+    else:
+        print(f"  [0] 系统默认设备 (auto)")
     
     for idx, (device_id, device_name) in enumerate(devices, 1):
-        # 显示完整设备名称（不截断）
-        marker = " (默认)" if idx == default_choice else ""
-        print(f"  [{idx}]{marker} {device_name}")
-        print(f"       设备ID: {device_id}")
+        # 高亮默认选项
+        if idx == default_choice:
+            print(f"  {GREEN}{BOLD}► [{idx}] {device_name} ✓{RESET}")
+            print(f"       {CYAN}设备ID: {device_id}{RESET}")
+        else:
+            print(f"  [{idx}] {device_name}")
+            print(f"       设备ID: {device_id}")
     
-    print(f"\n请输入序号选择设备 (0-{len(devices)})，{timeout}秒后自动选择 VB-Cable...")
-    print("-" * 60)
+    print(f"\n{YELLOW}⏱️  {timeout}秒后自动选择默认项: {default_name}{RESET}")
+    print("─" * 60)
     
-    # 使用线程实现超时输入
+    # 使用线程实现超时输入和倒计时显示
     selected = [None]
+    countdown_active = [True]
+    
+    def show_countdown():
+        """显示倒计时进度条"""
+        import time
+        remaining = timeout
+        bar_length = 20
+        while remaining > 0 and countdown_active[0] and selected[0] is None:
+            progress = remaining / timeout
+            filled = int(bar_length * progress)
+            bar = '=' * filled + '>' + '-' * (bar_length - filled - 1)
+            print(f"\r{YELLOW}[{bar}] {remaining:2d}/{timeout}秒{RESET}", end='', flush=True)
+            time.sleep(1)
+            remaining -= 1
+        
+        if countdown_active[0] and selected[0] is None:
+            bar = '=' * bar_length + '>'
+            print(f"\r{YELLOW}[{bar}] 自动选择！{RESET}")
     
     def get_input():
         try:
-            user_input = input(f"请选择 [{default_choice}]: ").strip()
+            user_input = input(f"\n请选择 [{default_choice}]: ").strip()
+            countdown_active[0] = False
             selected[0] = user_input if user_input else str(default_choice)
         except EOFError:
+            countdown_active[0] = False
             selected[0] = str(default_choice)
+    
+    countdown_thread = threading.Thread(target=show_countdown, daemon=True)
+    countdown_thread.start()
     
     input_thread = threading.Thread(target=get_input, daemon=True)
     input_thread.start()
@@ -121,12 +159,19 @@ def interactive_select_audio_device(mpv_path: str = "mpv", timeout: int = 10) ->
     try:
         choice_num = int(choice)
         if choice_num == 0:
-            print("\n✅ 已选择: 系统默认设备 (auto)")
+            GREEN = '\033[92m'
+            BOLD = '\033[1m'
+            RESET = '\033[0m'
+            print(f"\n{GREEN}{BOLD}✅ 已选择: 系统默认设备 (auto){RESET}")
             return "auto"
         elif 1 <= choice_num <= len(devices):
             device_id, device_name = devices[choice_num - 1]
-            print(f"\n✅ 已选择: {device_name}")
-            print(f"   完整设备ID: {device_id}")
+            GREEN = '\033[92m'
+            CYAN = '\033[96m'
+            BOLD = '\033[1m'
+            RESET = '\033[0m'
+            print(f"\n{GREEN}{BOLD}✅ 已选择: {device_name}{RESET}")
+            print(f"   {CYAN}完整设备ID: {device_id}{RESET}")
             return device_id
         else:
             # 无效选择，使用默认
@@ -159,28 +204,61 @@ def interactive_select_streaming_mode(timeout: int = 10) -> bool:
     返回:
         True 启用推流，False 禁用推流
     """
-    print("\n" + "=" * 60)
-    print("🎙️  推流模式选择")
-    print("=" * 60)
+    print("\n" + "╔" + "═" * 58 + "╗")
+    print("║" + " " * 19 + "🎙️  推流模式选择" + " " * 20 + "║")
+    print("╚" + "═" * 58 + "╝")
+    
+    # ANSI 颜色码
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    CYAN = '\033[96m'
+    RED = '\033[91m'
+    BOLD = '\033[1m'
+    RESET = '\033[0m'
     
     print("\n请选择音频输出模式:\n")
-    print("  [1] 本地播放 - 播放到本机音频设备")
-    print("      ❌ 无法推流到浏览器")
+    print(f"  {GREEN}{BOLD}► [1] 本地播放 - 播放到本机音频设备 ✓{RESET}")
+    print(f"      {CYAN}✓ 直接播放，无延迟{RESET}")
+    print(f"      {RED}✗ 无法推流到浏览器{RESET}")
     print("")
-    print("  [2] 推流模式 - 通过 VB-Cable + FFmpeg 推流到浏览器")
-    print("      ⚠️  需要安装 VB-Cable 和 FFmpeg")    
-    print(f"\n请输入序号选择 (1-2)，{timeout}秒后自动选择本地播放...")
-    print("-" * 60)
+    print(f"  [2] 推流模式 - 通过 VB-Cable + FFmpeg 推流到浏览器")
+    print(f"      {CYAN}✓ 支持浏览器播放{RESET}")
+    print(f"      {YELLOW}⚠️  需要安装 VB-Cable 和 FFmpeg{RESET}")    
+    print(f"\n{YELLOW}⏱️  {timeout}秒后自动选择: 本地播放模式{RESET}")
+    print("─" * 60)
     
-    # 使用线程实现超时输入
+    # 使用线程实现超时输入和倒计时显示
     selected = [None]
+    countdown_active = [True]
+    
+    def show_countdown():
+        """显示倒计时进度条"""
+        import time
+        remaining = timeout
+        bar_length = 20
+        while remaining > 0 and countdown_active[0] and selected[0] is None:
+            progress = remaining / timeout
+            filled = int(bar_length * progress)
+            bar = '=' * filled + '>' + '-' * (bar_length - filled - 1)
+            print(f"\r{YELLOW}[{bar}] {remaining:2d}/{timeout}秒{RESET}", end='', flush=True)
+            time.sleep(1)
+            remaining -= 1
+        
+        if countdown_active[0] and selected[0] is None:
+            bar = '=' * bar_length + '>'
+            print(f"\r{YELLOW}[{bar}] 自动选择！{RESET}")
     
     def get_input():
         try:
-            user_input = input("请选择 [1]: ").strip()
+            user_input = input(f"\n请选择 [1]: ").strip()
+            countdown_active[0] = False
             selected[0] = user_input if user_input else "1"
         except EOFError:
+            countdown_active[0] = False
             selected[0] = "1"
+    
+    countdown_thread = threading.Thread(target=show_countdown, daemon=True)
+    countdown_thread.start()
     
     input_thread = threading.Thread(target=get_input, daemon=True)
     input_thread.start()
@@ -192,12 +270,20 @@ def interactive_select_streaming_mode(timeout: int = 10) -> bool:
     try:
         choice_num = int(choice)
         if choice_num == 2:
-            print("\n✅ 已选择: 推流模式")
-            print("   音频将通过 VB-Cable 推流到浏览器")
+            GREEN = '\033[92m'
+            CYAN = '\033[96m'
+            BOLD = '\033[1m'
+            RESET = '\033[0m'
+            print(f"\n{GREEN}{BOLD}✅ 已选择: 推流模式{RESET}")
+            print(f"   {CYAN}音频将通过 VB-Cable 推流到浏览器{RESET}")
             return True
         else:
-            print("\n✅ 已选择: 本地播放模式")
-            print("   音频仅播放到本机音频设备")
+            GREEN = '\033[92m'
+            CYAN = '\033[96m'
+            BOLD = '\033[1m'
+            RESET = '\033[0m'
+            print(f"\n{GREEN}{BOLD}✅ 已选择: 本地播放模式{RESET}")
+            print(f"   {CYAN}音频仅播放到本机音频设备{RESET}")
             return False
     except ValueError:
         print(f"\n❌ 无效选择 '{choice}'，默认本地播放模式")
@@ -214,7 +300,26 @@ def update_mpv_cmd_with_device(config: configparser.ConfigParser, device_id: str
     返回:
         更新后的 mpv_cmd
     """
-    mpv_cmd = config.get("app", "mpv_cmd", fallback="mpv --idle=yes")
+    # 优先使用 bin 目录下的 mpv.exe
+    bin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bin")
+    bin_mpv = os.path.join(bin_dir, "mpv.exe")
+    
+    # 获取现有的 mpv_cmd 配置
+    mpv_cmd = config.get("app", "mpv_cmd", fallback="")
+    
+    # 如果 bin 目录存在 mpv.exe，强制使用它，保留其他参数
+    if os.path.exists(bin_mpv):
+        if mpv_cmd:
+            # 提取现有的参数（去掉可执行文件路径）
+            parts = mpv_cmd.split(None, 1)
+            params = parts[1] if len(parts) > 1 else "--idle=yes"
+        else:
+            params = "--idle=yes"
+        # 构建新命令，使用 bin 目录的 mpv
+        mpv_cmd = f'"{bin_mpv}" {params}'
+    elif not mpv_cmd:
+        # 如果没有配置且 bin 目录也没有，使用默认值
+        mpv_cmd = "mpv --idle=yes"
     
     # 移除现有的 --audio-device 参数
     mpv_cmd = re.sub(r'\s*--audio-device=[^\s]+', '', mpv_cmd)
@@ -226,6 +331,16 @@ def update_mpv_cmd_with_device(config: configparser.ConfigParser, device_id: str
     return mpv_cmd
 
 
+def cleanup_on_exit():
+    """程序退出时的清理函数"""
+    try:
+        import subprocess
+        # 强制终止所有 MPV 进程
+        subprocess.run(["taskkill", "/IM", "mpv.exe", "/F"], capture_output=True, timeout=2)
+        print("\n✅ MPV 进程已清理")
+    except:
+        pass
+
 def main():
     """启动 FastAPI 服务器"""
     import sys
@@ -234,7 +349,22 @@ def main():
     import configparser
     import threading
     import re
+    import signal
+    import atexit
     from pathlib import Path
+    
+    # 注册退出时清理函数
+    atexit.register(cleanup_on_exit)
+    
+    # 处理 Ctrl+C 信号
+    def signal_handler(sig, frame):
+        print("\n\n⚠️  收到中断信号，正在清理...")
+        cleanup_on_exit()
+        sys.exit(0)
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    if hasattr(signal, 'SIGTERM'):
+        signal.signal(signal.SIGTERM, signal_handler)
     
     # 确保 stdout 使用 UTF-8 编码（Windows 兼容性）
     if sys.stdout.encoding != "utf-8":
@@ -260,7 +390,12 @@ def main():
         config.read(config_file, encoding="utf-8")
     
     # 【第一步】交互式选择音频设备（默认VB-Cable）
-    mpv_path = config.get("app", "mpv_cmd", fallback="mpv").split()[0]
+    # 优先使用 bin 目录下的 mpv.exe
+    bin_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bin")
+    bin_mpv = os.path.join(bin_dir, "mpv.exe")
+    default_mpv = bin_mpv if os.path.exists(bin_mpv) else "mpv"
+    
+    mpv_path = config.get("app", "mpv_cmd", fallback=default_mpv).split()[0]
     selected_device = interactive_select_audio_device(mpv_path=mpv_path, timeout=10)
     
     # 更新 mpv_cmd 配置
@@ -279,6 +414,10 @@ def main():
     
     # 根据推流选择更新 enable_stream
     config.set("app", "enable_stream", "true" if enable_streaming else "false")
+    
+    # 【重要】在导入 app 之前，通过环境变量告诉 stream.py 是否启用推流
+    # 这样 stream.py 在模块导入时就能读到正确的值
+    os.environ["ENABLE_STREAMING"] = "true" if enable_streaming else "false"
     
     # 显示完整设备名称和设备ID
     device_display = '系统默认 (auto)'

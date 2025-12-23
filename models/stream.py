@@ -28,7 +28,15 @@ from models.logger import logger
 # ==================== 全局推流开关 ====================
 # 从 settings.ini 读取是否启用推流功能
 def get_streaming_enabled():
-    """从配置文件获取推流启用状态"""
+    """从环境变量或配置文件获取推流启用状态"""
+    # 优先检查环境变量（由 main.py 设置）
+    env_streaming = os.environ.get("ENABLE_STREAMING", "").strip().lower()
+    if env_streaming in ("true", "1", "yes", "on"):
+        return True
+    if env_streaming in ("false", "0", "no", "off"):
+        return False
+    
+    # 如果环境变量未设置，读取配置文件
     try:
         import configparser
         config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "settings.ini")
@@ -240,83 +248,110 @@ def load_stream_globals():
 
 KEEPALIVE_THRESHOLD, KEEPALIVE_CHUNK_SIZE, BROADCAST_QUEUE_MAXSIZE, BROADCAST_EXECUTOR_WORKERS = load_stream_globals()
 
-# 尝试找FFmpeg的完整路径
-def find_ffmpeg():
-    """查找FFmpeg可执行文件"""
-    possible_paths = [
-        "ffmpeg",  # PATH中的ffmpeg
-        "C:\\ffmpeg\\bin\\ffmpeg.exe",
-        "C:\\ffmpeg\\ffmpeg.exe",
-        "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
-        "C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe",
-        os.path.join(os.path.dirname(__file__), "..", "ffmpeg", "ffmpeg.exe"),
-    ]
+# ==================== 条件性初始化：仅在推流启用时执行 ====================
+if STREAMING_ENABLED:
+    logger.info("🎙️ 推流功能已启用，初始化 FFmpeg 模块...")
     
-    for path in possible_paths:
+    # 尝试找FFmpeg的完整路径
+    def find_ffmpeg():
+        """查找FFmpeg可执行文件（支持打包环境）"""
+        import sys
+        
+        # 获取应用程序目录
+        if getattr(sys, 'frozen', False):
+            # 打包后环境：exe 所在目录
+            app_dir = os.path.dirname(os.path.abspath(sys.executable))
+        else:
+            # 开发环境
+            app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        
+        # 优先使用 bin 目录下的 ffmpeg.exe
+        bin_ffmpeg = os.path.join(app_dir, "bin", "ffmpeg.exe")
+        
+        possible_paths = [
+            bin_ffmpeg,  # 优先：程序 bin 目录
+            "ffmpeg",  # PATH中的ffmpeg
+            "C:\\ffmpeg\\bin\\ffmpeg.exe",
+            "C:\\ffmpeg\\ffmpeg.exe",
+            "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
+            "C:\\Program Files (x86)\\ffmpeg\\bin\\ffmpeg.exe",
+            os.path.join(app_dir, "ffmpeg", "ffmpeg.exe"),
+        ]
+        
+        for path in possible_paths:
+            try:
+                # 测试是否能运行
+                result = subprocess.run(f'"{path}" -version', shell=True, capture_output=True, timeout=2)
+                if result.returncode == 0:
+                    logger.info(f"找到FFmpeg: {path}")
+                    return path
+            except:
+                pass
+        
+        logger.warning(f"找不到FFmpeg，将尝试使用 'ffmpeg'")
+        return "ffmpeg"
+
+    FFMPEG_CMD = find_ffmpeg()
+    
+    def find_available_audio_device():
+        """
+        🔥 自动检测可用的音频输入设备
+        Windows dshow 会列出所有音频设备
+        优先级：配置文件指定 > CABLE Output > Stereo Mix > 第一个可用设备
+        """
+        # 🔥 自动检测可用设备
         try:
-            # 测试是否能运行
-            result = subprocess.run(f'"{path}" -version', shell=True, capture_output=True, timeout=2)
-            if result.returncode == 0:
-                logger.info(f"找到FFmpeg: {path}")
-                return path
-        except:
-            pass
+            # 尝试列出所有可用的音频设备
+            result = subprocess.run(
+                f'"{FFMPEG_CMD}" -list_devices true -f dshow -i dummy 2>&1',
+                shell=True,
+                capture_output=True,
+                timeout=5,
+                text=True
+            )
+            
+            output = result.stderr + result.stdout
+            lines = output.split('\n')
+            
+            # 查找音频设备行 - 兼容新旧 FFmpeg 版本
+            # 新版本格式: "Device Name" (audio)
+            # 旧版本格式: "Device Name" (audio=...)
+            audio_devices = []
+            for line in lines:
+                if '(audio' in line:  # 同时匹配 (audio) 和 audio=
+                    # 提取设备名称
+                    start = line.find('"')
+                    end = line.rfind('"')
+                    if start != -1 and end != -1 and start < end:
+                        device_name = line[start+1:end]
+                        audio_devices.append(device_name)
+                        logger.info(f"[STREAM] 检测到音频设备: {device_name}")
+            
+            # Prioritize: 1. CABLE Output 2. Virtual device 3. First available device
+            for device in audio_devices:
+                if 'CABLE' in device or 'Virtual' in device or 'Stereo Mix' in device:
+                    logger.info(f"选择虚拟设备: {device}")
+                    return device
+            
+            if audio_devices:
+                logger.info(f"选择第一个可用设备: {audio_devices[0]}")
+                return audio_devices[0]
+            
+            # No device found, use default
+            logger.warning("未找到音频设备，将使用默认设备")
+            return None  # 稍后会使用默认的 CABLE Output
+            
+        except Exception as e:
+            logger.error(f"检测音频设备失败: {e}")
+            return None
+
+else:
+    logger.info("🚫 推流功能已禁用 (enable_stream=false)，跳过 FFmpeg 初始化")
+    FFMPEG_CMD = None
     
-    logger.warning(f"找不到FFmpeg，将尝试使用 'ffmpeg'")
-    return "ffmpeg"
-
-FFMPEG_CMD = find_ffmpeg()
-
-def find_available_audio_device():
-    """
-    🔥 自动检测可用的音频输入设备
-    Windows dshow 会列出所有音频设备
-    优先级：配置文件指定 > CABLE Output > Stereo Mix > 第一个可用设备
-    """
-    # 🔥 自动检测可用设备
-    try:
-        # 尝试列出所有可用的音频设备
-        result = subprocess.run(
-            f'"{FFMPEG_CMD}" -list_devices true -f dshow -i dummy 2>&1',
-            shell=True,
-            capture_output=True,
-            timeout=5,
-            text=True
-        )
-        
-        output = result.stderr + result.stdout
-        lines = output.split('\n')
-        
-        # 查找音频设备行 - 兼容新旧 FFmpeg 版本
-        # 新版本格式: "Device Name" (audio)
-        # 旧版本格式: "Device Name" (audio=...)
-        audio_devices = []
-        for line in lines:
-            if '(audio' in line:  # 同时匹配 (audio) 和 audio=
-                # 提取设备名称
-                start = line.find('"')
-                end = line.rfind('"')
-                if start != -1 and end != -1 and start < end:
-                    device_name = line[start+1:end]
-                    audio_devices.append(device_name)
-                    logger.info(f"[STREAM] 检测到音频设备: {device_name}")
-        
-        # Prioritize: 1. CABLE Output 2. Virtual device 3. First available device
-        for device in audio_devices:
-            if 'CABLE' in device or 'Virtual' in device or 'Stereo Mix' in device:
-                logger.info(f"选择虚拟设备: {device}")
-                return device
-        
-        if audio_devices:
-            logger.info(f"选择第一个可用设备: {audio_devices[0]}")
-            return audio_devices[0]
-        
-        # No device found, use default
-        logger.warning("未找到音频设备，将使用默认设备")
-        return None  # 稍后会使用默认的 CABLE Output
-        
-    except Exception as e:
-        logger.error(f"检测音频设备失败: {e}")
+    def find_available_audio_device():
+        """推流禁用时的占位函数"""
+        logger.warning("推流功能已禁用，无法检测音频设备")
         return None
 
 # ==================== 浏览器特定的队列大小配置 ====================

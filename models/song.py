@@ -323,8 +323,54 @@ class StreamSong(Song):
             logger.debug("设置 mpv 属性: ytdl-format=bestaudio")
             mpv_command_func(["set_property", "ytdl-format", "bestaudio"])
 
-            logger.debug(f"加载文件: {self.stream_url}")
-            mpv_command_func(["loadfile", self.stream_url, "replace"])
+            # 对于 YouTube URL，优先使用 yt-dlp 获取直链
+            actual_url = self.stream_url
+            if "youtube.com" in self.stream_url or "youtu.be" in self.stream_url:
+                import subprocess
+                import sys
+                logger.info(f"🎬 检测到 YouTube URL，尝试通过 yt-dlp 获取直链...")
+                
+                # 获取应用程序目录（支持打包环境）
+                if getattr(sys, 'frozen', False):
+                    # 打包后环境：exe 所在目录
+                    app_dir = os.path.dirname(os.path.abspath(sys.executable))
+                else:
+                    # 开发环境
+                    app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                
+                # 优先使用 bin 目录下的 yt-dlp.exe
+                bin_yt_dlp = os.path.join(app_dir, "bin", "yt-dlp.exe")
+                if os.path.exists(bin_yt_dlp):
+                    yt_dlp_exe = bin_yt_dlp
+                    logger.info(f"   📦 使用 yt-dlp: {bin_yt_dlp}")
+                else:
+                    app_root_yt_dlp = os.path.join(app_dir, "yt-dlp.exe")
+                    yt_dlp_exe = app_root_yt_dlp if os.path.exists(app_root_yt_dlp) else "yt-dlp"
+                    if os.path.exists(app_root_yt_dlp):
+                        logger.info(f"   📦 使用 yt-dlp: {app_root_yt_dlp}")
+                    else:
+                        logger.info(f"   📦 使用系统 PATH 中的 yt-dlp")
+                
+                try:
+                    logger.info(f"   ⏳ 运行命令: {os.path.basename(yt_dlp_exe)} -g {self.stream_url[:50]}...")
+                    result = subprocess.run(
+                        [yt_dlp_exe, "-g", self.stream_url],
+                        capture_output=True,
+                        text=True,
+                        timeout=30
+                    )
+                    if result.returncode == 0:
+                        direct_urls = result.stdout.strip().split("\n")
+                        if direct_urls and direct_urls[0]:
+                            actual_url = direct_urls[-1].strip()
+                            logger.info(f"   ✅ 获取到直链（前100字符）: {actual_url[:100]}...")
+                    else:
+                        logger.warning(f"   ⚠️  yt-dlp -g 失败 (code={result.returncode}): {result.stderr[:200]}")
+                except Exception as e:
+                    logger.warning(f"   ⚠️  yt-dlp 获取直链异常: {e}，使用原始 URL")
+
+            logger.info(f"📤 调用 mpv loadfile 播放网络歌曲...")
+            mpv_command_func(["loadfile", actual_url, "replace"])
 
             # 添加到播放历史
             if save_to_history and add_to_history_func:

@@ -45,8 +45,15 @@ class MusicPlayer:
 
     @staticmethod
     def _get_app_dir():
-        """获取应用程序目录"""
-        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        """获取应用程序目录（支持打包环境）"""
+        import sys
+        # PyInstaller 打包后，使用 sys.executable 的目录
+        if getattr(sys, 'frozen', False):
+            # 打包后环境：exe 所在目录
+            return os.path.dirname(os.path.abspath(sys.executable))
+        else:
+            # 开发环境：从 __file__ 推导
+            return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     @staticmethod
     def _normalize_mpv_cmd(mpv_cmd: str, app_dir: str = None) -> str:
@@ -215,6 +222,9 @@ class MusicPlayer:
 
         # 播放管道名称（用于与mpv通信）
         self.pipe_name = None
+        
+        # MPV 进程对象
+        self.mpv_process = None
 
         # 播放历史 - 使用 PlayHistory 类
         self.playback_history_file = os.path.join(
@@ -613,10 +623,17 @@ class MusicPlayer:
             
             # 检查应用主目录
             app_dir = MusicPlayer._get_app_dir()
-            app_root_yt_dlp = os.path.join(app_dir, "yt-dlp.exe")
-            if os.path.exists(app_root_yt_dlp):
-                yt_dlp_path = app_root_yt_dlp
-                logger.info(f"在应用目录找到 yt-dlp: {app_root_yt_dlp}")
+            # 优先检查 bin 目录
+            bin_yt_dlp = os.path.join(app_dir, "bin", "yt-dlp.exe")
+            if os.path.exists(bin_yt_dlp):
+                yt_dlp_path = bin_yt_dlp
+                logger.info(f"在 bin 目录找到 yt-dlp: {bin_yt_dlp}")
+            # 其次检查应用根目录是否有 yt-dlp.exe
+            else:
+                app_root_yt_dlp = os.path.join(app_dir, "yt-dlp.exe")
+                if os.path.exists(app_root_yt_dlp):
+                    yt_dlp_path = app_root_yt_dlp
+                    logger.info(f"在应用目录找到 yt-dlp: {app_root_yt_dlp}")
             
             # 构建完整的启动命令
             mpv_launch_cmd = self.mpv_cmd
@@ -656,8 +673,9 @@ class MusicPlayer:
             logger.info("[执行参数分解]")
             import shlex
             try:
-                # 使用 shlex 进行更可靠的参数分解
-                parsed_args = shlex.split(mpv_launch_cmd)
+                # 使用 shlex 进行参数分解（Windows 模式）
+                # 在 Windows 上，shlex 默认 posix=False，但需要明确设置
+                parsed_args = shlex.split(mpv_launch_cmd, posix=False)
                 logger.info(f"  程序路径: {parsed_args[0]}")
                 logger.info(f"  总参数数: {len(parsed_args) - 1}")
                 logger.info("")
@@ -693,7 +711,23 @@ class MusicPlayer:
             
             try:
                 # 方法 1: 使用 shlex 解析命令字符串为列表，然后用 Popen
-                cmd_list = shlex.split(mpv_launch_cmd)
+                # 重要：在 Windows 上使用 posix=False 避免反斜杠被当作转义字符
+                cmd_list = shlex.split(mpv_launch_cmd, posix=False)
+                mpv_exe_path = cmd_list[0]
+                
+                # 验证 MPV 可执行文件是否存在
+                if not os.path.exists(mpv_exe_path):
+                    # 尝试在 PATH 中查找
+                    import shutil
+                    mpv_in_path = shutil.which(mpv_exe_path)
+                    if mpv_in_path:
+                        logger.info(f"✅ 在 PATH 中找到 MPV: {mpv_in_path}")
+                        cmd_list[0] = mpv_in_path
+                    else:
+                        logger.warning(f"⚠️  MPV 路径不存在: {mpv_exe_path}")
+                        logger.info(f"尝试使用 shell=True 模式启动...")
+                        raise FileNotFoundError(f"MPV not found: {mpv_exe_path}")
+                
                 logger.info(f"✅ 启动mpv进程 (shell=False)")
                 logger.debug(f"  命令列表: {cmd_list}")
                 process = subprocess.Popen(
@@ -703,15 +737,18 @@ class MusicPlayer:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL
                 )
+                self.mpv_process = process
                 logger.info(f"✅ mpv进程已启动 (PID: {process.pid})")
             except Exception as e2:
                 logger.warning(f"方法1失败: {e2}，尝试方法2 (shell=True)")
                 logger.debug(f"  原始命令: {mpv_launch_cmd}")
                 try:
                     process = subprocess.Popen(mpv_launch_cmd, shell=True)
+                    self.mpv_process = process
                     logger.info(f"✅ mpv进程已启动 (shell=True, PID: {process.pid})")
                 except Exception as e3:
-                    logger.error(f"方法2也失败: {e3}")
+                    logger.error(f"❌ 方法2也失败: {e3}")
+                    logger.error(f"请检查 MPV 路径配置: {self.mpv_cmd}")
                     raise
         except Exception as e:
             logger.error("启动 mpv 进程失败:", e)
@@ -736,7 +773,8 @@ class MusicPlayer:
             if cmd_list and len(cmd_list) > 0:
                 cmd_name = cmd_list[0]
                 if cmd_name == "loadfile":
-                    logger.info(f"📂 [MPV 命令] loadfile: {cmd_list[1] if len(cmd_list) > 1 else 'N/A'}")
+                    file_url = cmd_list[1] if len(cmd_list) > 1 else 'N/A'
+                    logger.info(f"📂 [MPV 命令] loadfile: {file_url[:100]}{'...' if len(file_url) > 100 else ''}")
                     
                     # 显示当前 MPV 完整配置信息（包含运行时参数）
                     runtime_audio_device = os.environ.get("MPV_AUDIO_DEVICE", "")
@@ -749,6 +787,19 @@ class MusicPlayer:
                         mpv_display_cmd = mpv_display_cmd.strip() + f" --audio-device={runtime_audio_device}"
                     
                     logger.info(f"   🎵 MPV 完整命令: {mpv_display_cmd}")
+                    
+                    # 对于网络歌曲（YouTube等），显示额外的参数
+                    is_network_url = file_url.startswith(('http://', 'https://'))
+                    if is_network_url:
+                        logger.info(f"   🌐 网络播放模式")
+                        logger.info(f"   📋 完整命令参数: {mpv_display_cmd} \"{file_url}\"")
+                        # 显示 ytdl 相关属性
+                        try:
+                            ytdl_format = self.mpv_get("ytdl-format")
+                            if ytdl_format:
+                                logger.info(f"   🎬 ytdl-format: {ytdl_format}")
+                        except:
+                            pass
                     
                     # 显示音频输出设备
                     if runtime_audio_device:
@@ -1213,15 +1264,24 @@ class MusicPlayer:
             # 对于 YouTube URL，优先使用 yt-dlp 获取直链来确保播放成功
             actual_url = url
             if "youtube.com" in url or "youtu.be" in url:
-                logger.debug(f"检测到 YouTube URL，尝试通过 yt-dlp 获取直链...")
-                yt_dlp_exe = "yt-dlp"
+                logger.info(f"🎬 检测到 YouTube URL，尝试通过 yt-dlp 获取直链...")
+                # 优先使用 bin 目录下的 yt-dlp.exe
                 app_dir = MusicPlayer._get_app_dir()
-                app_root_yt_dlp = os.path.join(app_dir, "yt-dlp.exe")
-                if os.path.exists(app_root_yt_dlp):
-                    yt_dlp_exe = app_root_yt_dlp
+                bin_yt_dlp = os.path.join(app_dir, "bin", "yt-dlp.exe")
+                if os.path.exists(bin_yt_dlp):
+                    yt_dlp_exe = bin_yt_dlp
+                    logger.info(f"   📦 使用 yt-dlp: {bin_yt_dlp}")
+                else:
+                    # 检查应用根目录是否有 yt-dlp.exe
+                    app_root_yt_dlp = os.path.join(app_dir, "yt-dlp.exe")
+                    yt_dlp_exe = app_root_yt_dlp if os.path.exists(app_root_yt_dlp) else "yt-dlp"
+                    if os.path.exists(app_root_yt_dlp):
+                        logger.info(f"   📦 使用 yt-dlp: {app_root_yt_dlp}")
+                    else:
+                        logger.info(f"   📦 使用系统 PATH 中的 yt-dlp")
                 
                 try:
-                    logger.debug(f"运行 yt-dlp -g 获取直链...")
+                    logger.info(f"   ⏳ 运行命令: {yt_dlp_exe} -g {url[:50]}...")
                     result = subprocess.run(
                         [yt_dlp_exe, "-g", url],
                         capture_output=True,
@@ -1232,13 +1292,13 @@ class MusicPlayer:
                         direct_urls = result.stdout.strip().split("\n")
                         if direct_urls and direct_urls[0]:
                             actual_url = direct_urls[-1].strip()  # 通常最后一个是音频/最优质
-                            logger.debug(f"✓ 获取到直链: {actual_url[:100]}...")
+                            logger.info(f"   ✅ 获取到直链（前100字符）: {actual_url[:100]}...")
                     else:
-                        logger.warning(f"yt-dlp -g 失败 (code={result.returncode}): {result.stderr[:200]}")
+                        logger.warning(f"   ⚠️  yt-dlp -g 失败 (code={result.returncode}): {result.stderr[:200]}")
                 except Exception as e:
-                    logger.warning(f"yt-dlp 获取直链异常: {e}，使用原始 URL")
+                    logger.warning(f"   ⚠️  yt-dlp 获取直链异常: {e}，使用原始 URL")
             
-            logger.debug(f"调用 mpv_command 播放 URL: {actual_url[:80]}...")
+            logger.info(f"📤 调用 mpv loadfile 播放网络歌曲...")
             mpv_command_func(["loadfile", actual_url, "replace"])
             logger.debug(f"已向 mpv 发送播放命令")
 

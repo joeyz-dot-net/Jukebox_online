@@ -237,12 +237,37 @@ async def startup_event():
 async def shutdown_event():
     """应用关闭时的清理事件"""
     logger.info("应用正在关闭...")
+    
+    # 清理 MPV 进程
+    try:
+        if PLAYER and PLAYER.mpv_process:
+            logger.info("正在关闭 MPV 进程...")
+            PLAYER.mpv_process.terminate()
+            try:
+                PLAYER.mpv_process.wait(timeout=3)
+                logger.info("✅ MPV 进程已正常关闭")
+            except:
+                logger.warning("MPV 进程未响应，强制终止...")
+                PLAYER.mpv_process.kill()
+                logger.info("✅ MPV 进程已强制终止")
+    except Exception as e:
+        logger.error(f"关闭 MPV 进程失败: {e}")
+        # 尝试使用 taskkill 强制终止
+        try:
+            import subprocess
+            subprocess.run(["taskkill", "/IM", "mpv.exe", "/F"], capture_output=True, timeout=2)
+            logger.info("✅ 使用 taskkill 强制终止 MPV 进程")
+        except:
+            pass
+    
+    # 清理 FFmpeg 进程
     try:
         stop_ffmpeg_stream()
         cleanup_ffmpeg_processes()
-        logger.info("FFmpeg 进程已清理")
+        logger.info("✅ FFmpeg 进程已清理")
     except Exception as e:
-        logger.error(f"关闭时清理FFmpeg失败: {e}")
+        logger.error(f"关闭时清理 FFmpeg 失败: {e}")
+    
     logger.info("应用已关闭")
 
 # ============================================
