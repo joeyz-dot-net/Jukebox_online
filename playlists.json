@@ -9,6 +9,16 @@
       "name": "默认歌单",
       "songs": [
         {
+          "url": "https://www.youtube.com/watch?v=qVQvFWiBJkU",
+          "title": "Top Hits 2026 ~ Trending Music 2026 🎶 Spotify Hits 2026 ~ Top Songs 2026 🎧",
+          "name": "Top Hits 2026 ~ Trending Music 2026 🎶 Spotify Hits 2026 ~ Top Songs 2026 🎧",
+          "type": "youtube",
+          "duration": 0,
+          "ts": 1766370098,
+          "thumbnail_url": "https://img.youtube.com/vi/qVQvFWiBJkU/maxresdefault.jpg",
+          "artist": "Top Hits 2026 ~ Trending Music 2026 🎶 Spotify Hits 2026 ~ Top Songs 2026 🎧"
+        },
+        {
           "url": "Black Myth - Wukong FLAC/03. Nonsense!.flac",
           "title": "03. Nonsense!.flac",
           "name": "03. Nonsense!.flac",
@@ -67,21 +77,11 @@
           "ts": 1766533902,
           "thumbnail_url": "",
           "artist": "Spotify Hits 2026 ❄️  ｜ Winter 2025⧸2026 ｜ Best Spotify Trending Playlist"
-        },
-        {
-          "url": "https://www.youtube.com/watch?v=qVQvFWiBJkU",
-          "title": "Top Hits 2026 ~ Trending Music 2026 🎶 Spotify Hits 2026 ~ Top Songs 2026 🎧",
-          "name": "Top Hits 2026 ~ Trending Music 2026 🎶 Spotify Hits 2026 ~ Top Songs 2026 🎧",
-          "type": "youtube",
-          "duration": 0,
-          "ts": 1766370098,
-          "thumbnail_url": "https://img.youtube.com/vi/qVQvFWiBJkU/maxresdefault.jpg",
-          "artist": "Top Hits 2026 ~ Trending Music 2026 🎶 Spotify Hits 2026 ~ Top Songs 2026 🎧"
         }
       ],
       "song_count": 7,
       "created_at": 1766369731.0493586,
-      "updated_at": 1766579544.0843952,
+      "updated_at": 1766633747.7424371,
       "current_playing_index": -1
     },
     {
