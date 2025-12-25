@@ -105,8 +105,9 @@ export class MusicAPI {
     }
 
     // 播放列表 API
-    async getPlaylist() {
-        return this.get('/playlist');
+    async getPlaylist(playlistId = null) {
+        const url = playlistId ? `/playlist?playlist_id=${encodeURIComponent(playlistId)}` : '/playlist';
+        return this.get(url);
     }
 
     async getPlaylists() {

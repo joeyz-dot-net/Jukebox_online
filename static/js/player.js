@@ -1,6 +1,7 @@
 // 播放器控制模块
 import { api } from './api.js';
 import { settingsManager } from './settingsManager.js';
+import { operationLock } from './operationLock.js';
 
 export class Player {
     constructor() {
@@ -8,6 +9,17 @@ export class Player {
         this.pollInterval = null;
         this.listeners = new Map();
         this.currentPlayingUrl = null;  // 追踪当前播放的歌曲URL
+        this.pollingPaused = false;  // 轮询暂停标志
+        
+        // 注册操作锁回调
+        operationLock.onPause(() => {
+            this.pollingPaused = true;
+            console.log('[Player] 轮询已被操作锁暂停');
+        });
+        operationLock.onResume(() => {
+            this.pollingPaused = false;
+            console.log('[Player] 轮询已被操作锁恢复');
+        });
     }
 
     // 事件监听
@@ -536,6 +548,12 @@ export class Player {
         if (this.pollInterval) return;
         
         this.pollInterval = setInterval(async () => {
+            // 检查操作锁：如果有活跃的锁，跳过本次轮询
+            if (this.pollingPaused || operationLock.isPollingPaused()) {
+                console.log('[Player] 轮询被操作锁暂停，跳过本次更新');
+                return;
+            }
+            
             try {
                 const status = await api.getStatus();
                 this.updateStatus(status);

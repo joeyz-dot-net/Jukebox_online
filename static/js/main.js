@@ -25,7 +25,8 @@ import { streamManager } from './stream.js'; // 【新增】推流格式管理�
 class MusicPlayerApp {
     constructor() {
         this.initialized = false;
-        this.currentPlaylistId = 'default';  // 跟踪当前选择的歌单ID
+        // 【用户隔离】从 localStorage 恢复歌单选择，默认为 'default'
+        this.currentPlaylistId = localStorage.getItem('selectedPlaylistId') || 'default';
         this._autoNextTriggered = false;  // 自动播放下一首的标记
         this.lastPlayStatus = null;  // 追踪上一次的播放状态，用于检测播放停止
         this.isRestoringStream = false;  // 标记是否正在恢复流，避免竞态
@@ -357,17 +358,9 @@ class MusicPlayerApp {
     initPlayer() {
         // 监听播放状态更新
         player.on('statusUpdate', ({ status }) => {
-            // 更新当前歌单ID
-            if (status && status.current_playlist_id) {
-                if (this.currentPlaylistId !== status.current_playlist_id) {
-                    this.currentPlaylistId = status.current_playlist_id;
-                    console.log('📂 当前歌单已切换:', this.currentPlaylistId);
-                    // 歌单切换时更新队列按钮图标
-                    this.updateQueueNavIcon();
-                } else {
-                    this.currentPlaylistId = status.current_playlist_id;
-                }
-            }
+            // 【用户隔离】不再从后端同步 current_playlist_id
+            // 歌单选择由前端 localStorage 独立管理，每个浏览器独立
+            // status.current_playlist_id 只用于调试，不覆盖前端状态
             
             // ✅ 只在循环模式改变时输出日志
             if (status && status.loop_mode !== this.lastLoopMode) {
@@ -1991,13 +1984,9 @@ class MusicPlayerApp {
                     if (playlistsContent) playlistsContent.classList.add('tab-visible');
                 }, 10);
             }
-            playlistManager.switch('default').then(() => {
-                this.currentPlaylistId = 'default';
-                this.renderPlaylist();
-            }).catch(err => {
-                console.error('初始化队列失败:', err);
-                this.renderPlaylist();
-            });
+            // 【用户隔离】不再强制切换到 default，保持 initPlaylist() 中从 localStorage 恢复的歌单选择
+            // 只渲染列表，不改变当前歌单ID
+            this.renderPlaylist();
         }
         
         // 绑定本地歌曲关闭按钮

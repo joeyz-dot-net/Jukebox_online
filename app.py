@@ -1273,19 +1273,24 @@ async def add_song_to_playlist_top(playlist_id: str, request: Request):
         )
 
 @app.get("/playlist")
-async def get_current_playlist():
-    """获取当前播放队列"""
+async def get_current_playlist(playlist_id: str = None):
+    """获取指定歌单内容（用户隔离：每个浏览器独立选择歌单）
+    
+    参数:
+      playlist_id: 歌单ID（可选，默认为 'default'）
+    """
     try:
         songs = []
+        
+        # 使用前端传入的 playlist_id，不再依赖后端全局变量
+        target_playlist_id = playlist_id or DEFAULT_PLAYLIST_ID
 
-        # 优先使用多歌单管理器中的当前歌单数据（包括默认歌单）
-        playlist = PLAYLISTS_MANAGER.get_playlist(CURRENT_PLAYLIST_ID)
-        # 如果当前歌单缺失，回退到默认歌单
+        # 获取指定歌单数据
+        playlist = PLAYLISTS_MANAGER.get_playlist(target_playlist_id)
+        # 如果歌单不存在，回退到默认歌单
         if not playlist:
             playlist = PLAYLISTS_MANAGER.get_playlist(DEFAULT_PLAYLIST_ID)
-            # 同时修正当前歌单ID，保持前后端一致
-            if playlist:
-                globals()["CURRENT_PLAYLIST_ID"] = DEFAULT_PLAYLIST_ID
+            target_playlist_id = DEFAULT_PLAYLIST_ID
         if playlist and hasattr(playlist, "songs"):
             for s in playlist.songs:
                 if isinstance(s, dict):
@@ -1319,15 +1324,13 @@ async def get_current_playlist():
         except:
             pass
         
-        # 获取当前歌单名称
-        playlist = PLAYLISTS_MANAGER.get_playlist(CURRENT_PLAYLIST_ID)
-        if not playlist:
-            playlist = PLAYLISTS_MANAGER.get_playlist(DEFAULT_PLAYLIST_ID)
+        # 获取歌单名称（使用已获取的 playlist 对象）
         playlist_name = playlist.name if playlist else "--"
         
         return {
             "status": "OK",
             "playlist": songs,  # 前端期望的字段名是 playlist
+            "playlist_id": target_playlist_id,  # 返回实际使用的歌单ID
             "playlist_name": playlist_name,  # 添加歌单名称
             "current_index": current_index
         }
@@ -1567,11 +1570,12 @@ async def update_playlist(playlist_id: str, data: dict):
 
 @app.post("/playlists/{playlist_id}/switch")
 async def switch_playlist(playlist_id: str):
-    """切换到指定歌单"""
-    global CURRENT_PLAYLIST_ID
+    """验证歌单是否存在（用户隔离：不再修改后端全局状态）
     
+    歌单选择状态由前端 localStorage 独立管理，后端只负责验证歌单是否存在。
+    """
     try:
-        # 获取目标歌单
+        # 验证目标歌单是否存在
         playlist = PLAYLISTS_MANAGER.get_playlist(playlist_id)
         if not playlist:
             return JSONResponse(
@@ -1579,10 +1583,7 @@ async def switch_playlist(playlist_id: str):
                 status_code=404
             )
         
-        # 切换到新歌单（直接指向目标歌单对象）
-        CURRENT_PLAYLIST_ID = playlist_id
-        PLAYLISTS_MANAGER.save()
-        
+        # 返回歌单信息，不修改后端全局状态
         return {
             "status": "OK",
             "playlist": {

@@ -1,6 +1,7 @@
 // 播放列表管理模块
 import { api } from './api.js';
 import { Toast } from './ui.js';
+import { operationLock } from './operationLock.js';
 
 export class PlaylistManager {
     constructor() {
@@ -30,12 +31,18 @@ export class PlaylistManager {
         return 'default';
     }
 
-    // 加载当前播放队列
+    // 加载当前播放队列（用户隔离：使用前端保存的 selectedPlaylistId）
     async loadCurrent() {
-        const result = await api.getPlaylist();
+        // 使用前端独立维护的 selectedPlaylistId，每个浏览器独立
+        const result = await api.getPlaylist(this.selectedPlaylistId);
         if (result.status === 'OK' && Array.isArray(result.playlist)) {
             this.currentPlaylist = result.playlist;
             this.currentPlaylistName = result.playlist_name || '当前播放列表'; // 获取歌单名称
+            // 如果返回的歌单ID与请求不同（例如歌单被删除），同步更新
+            if (result.playlist_id && result.playlist_id !== this.selectedPlaylistId) {
+                console.log('[歌单管理] 歌单已不存在，切换到:', result.playlist_id);
+                this.setSelectedPlaylist(result.playlist_id);
+            }
             this.updateUrlSet();
             return result;
         }
@@ -78,8 +85,10 @@ export class PlaylistManager {
         return result;
     }
 
-    // 切换歌单
+    // 切换歌单（用户隔离：只验证后端歌单存在，不修改后端全局状态）
     async switch(id) {
+        // 先更新本地状态（确保 loadCurrent 使用正确的 ID）
+        this.setSelectedPlaylist(id);
         const result = await api.switchPlaylist(id);
         await this.loadCurrent(); // 重新加载当前队列
         return result;
@@ -617,6 +626,9 @@ function initTouchDragSort(container, rerenderFn, rerenderArgs) {
         if (isDragging || !draggedItem) return;
         isDragging = true;
 
+        // 获取操作锁，暂停轮询
+        operationLock.acquire('drag');
+
         // 添加拖拽中样式
         draggedItem.classList.add('dragging');
         document.body.style.overflow = 'hidden'; // 禁止滚动
@@ -752,6 +764,8 @@ function initTouchDragSort(container, rerenderFn, rerenderArgs) {
             draggedItem.style.zIndex = '';
             delete draggedItem.dataset.originalTop;
         }
+        // 释放操作锁，恢复轮询
+        operationLock.release('drag');
     }
 
     function resetDragState() {
@@ -760,6 +774,8 @@ function initTouchDragSort(container, rerenderFn, rerenderArgs) {
         placeholder = null;
         isDragging = false;
         document.body.style.overflow = '';
+        // 确保释放操作锁
+        operationLock.release('drag');
     }
 }
 

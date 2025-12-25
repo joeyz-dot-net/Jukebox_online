@@ -1,6 +1,7 @@
 // 歌单管理模块
 import { playlistManager } from './playlist.js';
 import { Toast } from './ui.js';
+import { operationLock } from './operationLock.js';
 
 export class PlaylistsManagement {
     constructor() {
@@ -153,14 +154,14 @@ export class PlaylistsManagement {
                 try {
                     console.log('[歌单管理] 开始切换歌单:', playlist.id, playlist.name);
                     
-                    // 第一步：调用后端切换API，更新服务器的CURRENT_PLAYLIST_ID
-                    console.log('[歌单管理] 步骤1: 调用后端切换API');
-                    const switchResult = await playlistManager.switch(playlist.id);
-                    console.log('[歌单管理] 后端切换结果:', switchResult);
-                    
-                    // 第二步：更新前端本地状态
-                    console.log('[歌单管理] 步骤2: 更新前端本地状态');
+                    // 第一步：先更新前端本地状态（必须在 switch 之前，因为 loadCurrent 依赖它）
+                    console.log('[歌单管理] 步骤1: 更新前端本地状态');
                     playlistManager.setSelectedPlaylist(playlist.id);
+                    
+                    // 第二步：调用后端验证歌单存在
+                    console.log('[歌单管理] 步骤2: 调用后端验证歌单');
+                    const switchResult = await playlistManager.switch(playlist.id);
+                    console.log('[歌单管理] 后端验证结果:', switchResult);
                     
                     // 第三步：重新加载数据确保同步
                     console.log('[歌单管理] 步骤3: 重新加载所有歌单数据');
@@ -188,15 +189,21 @@ export class PlaylistsManagement {
                     editBtn.addEventListener('click', async (e) => {
                         e.stopPropagation();
                         
-                        const newName = prompt(`编辑歌单名称：`, playlist.name);
-                        if (newName !== null && newName.trim() && newName.trim() !== playlist.name) {
-                            try {
+                        // 获取操作锁，暂停轮询
+                        operationLock.acquire('edit');
+                        
+                        try {
+                            const newName = prompt(`编辑歌单名称：`, playlist.name);
+                            if (newName !== null && newName.trim() && newName.trim() !== playlist.name) {
                                 await playlistManager.update(playlist.id, { name: newName.trim() });
                                 Toast.success('✏️ 歌单已重命名');
                                 this.render(onPlaylistSwitch);
-                            } catch (error) {
-                                Toast.error('❌ 重命名失败: ' + error.message);
                             }
+                        } catch (error) {
+                            Toast.error('❌ 重命名失败: ' + error.message);
+                        } finally {
+                            // 释放操作锁，恢复轮询
+                            operationLock.release('edit');
                         }
                     });
                 }
@@ -209,14 +216,17 @@ export class PlaylistsManagement {
                     deleteBtn.addEventListener('click', async (e) => {
                         e.stopPropagation();
                         
-                        // 优化删除确认对话框
-                        const confirmed = confirm(
-                            `确定要删除歌单"${playlist.name}"吗？\n\n` +
-                            `该歌单包含 ${playlist.songs?.length || 0} 首歌曲，删除后无法恢复。`
-                        );
+                        // 获取操作锁，暂停轮询
+                        operationLock.acquire('delete');
                         
-                        if (confirmed) {
-                            try {
+                        try {
+                            // 优化删除确认对话框
+                            const confirmed = confirm(
+                                `确定要删除歌单"${playlist.name}"吗？\n\n` +
+                                `该歌单包含 ${playlist.songs?.length || 0} 首歌曲，删除后无法恢复。`
+                            );
+                            
+                            if (confirmed) {
                                 // 添加删除动画
                                 item.style.transition = 'all 0.3s ease';
                                 item.style.opacity = '0';
@@ -226,11 +236,14 @@ export class PlaylistsManagement {
                                 await playlistManager.delete(playlist.id);
                                 Toast.success('🗑️ 歌单已删除');
                                 this.render(onPlaylistSwitch);
-                            } catch (error) {
-                                item.style.opacity = '1';
-                                item.style.transform = 'translateX(0)';
-                                Toast.error('❌ 删除失败: ' + error.message);
                             }
+                        } catch (error) {
+                            item.style.opacity = '1';
+                            item.style.transform = 'translateX(0)';
+                            Toast.error('❌ 删除失败: ' + error.message);
+                        } finally {
+                            // 释放操作锁，恢复轮询
+                            operationLock.release('delete');
                         }
                     });
                 }
