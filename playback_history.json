@@ -1,18 +1,47 @@
 [
   {
+    "url": "单依纯/单依纯 - 不值得 (Live).flac",
+    "title": "单依纯 - 不值得 (Live)",
+    "name": "单依纯 - 不值得 (Live)",
+    "type": "local",
+    "duration": 0,
+    "ts": 1766913695,
+    "thumbnail_url": null,
+    "artist": "单依纯 - 不值得 (Live)",
+    "file_name": "单依纯 - 不值得 (Live).flac",
+    "file_extension": ".flac",
+    "file_size": 0,
+    "play_count": 12,
+    "timestamps": "1766633399,1766895736,1766896321,1766897038,1766898022,1766898207,1766907541,1766911617,1766911709,1766911745,1766911755,1766913695"
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=PisAtilDIis",
+    "title": "【歌手2025·纯享】 #单依纯《君》“经典传承”！创新串烧改编 传递跨越时空的怀念 |《歌手2025》| SINGER 2025｜MangoTV",
+    "name": "【歌手2025·纯享】 #单依纯《君》“经典传承”！创新串烧改编 传递跨越时空的怀念 |《歌手2025》| SINGER 2025｜MangoTV",
+    "type": "youtube",
+    "duration": 0,
+    "ts": 1766913688,
+    "thumbnail_url": "https://img.youtube.com/vi/PisAtilDIis/maxresdefault.jpg",
+    "artist": "【歌手2025·纯享】 #单依纯《君》“经典传承”！创新串烧改编 传递跨越时空的怀念 |《歌手2025》| SINGER 2025｜MangoTV",
+    "stream_type": "youtube",
+    "video_id": "PisAtilDIis",
+    "play_count": 18,
+    "timestamps": "1766638798,1766821788,1766822611,1766887215,1766889144,1766889471,1766890024,1766890073,1766890204,1766890339,1766890611,1766890789,1766890858,1766890927,1766891886,1766895665,1766895986,1766913688"
+  },
+  {
     "url": "SF6/1-12. E. Honda's Theme - Kumadori.mp3",
     "title": "1-12. E. Honda's Theme - Kumadori",
     "name": "1-12. E. Honda's Theme - Kumadori",
     "type": "local",
     "duration": 0,
-    "ts": 1766913029,
+    "ts": 1766913680,
     "thumbnail_url": null,
     "artist": "1-12. E. Honda's Theme - Kumadori",
     "file_name": "1-12. E. Honda's Theme - Kumadori.mp3",
     "file_extension": ".mp3",
     "file_size": 0,
-    "play_count": 9,
-    "timestamps": "1766887042,1766891638,1766891973,1766892444,1766892870,1766894321,1766894732,1766896323,1766913029"
+    "play_count": 10,
+    "timestamps": "1766887042,1766891638,1766891973,1766892444,1766892870,1766894321,1766894732,1766896323,1766913029,1766913680"
   },
   {
     "url": "SF6/1-01. NOT ON THE SIDELINES (MV Ver.).mp3",
@@ -89,21 +118,6 @@
     "timestamps": "1766887180,1766890091,1766890992,1766891000,1766891043,1766891373,1766891907,1766891954,1766892889,1766894271,1766895218,1766895623,1766907855,1766907878,1766907882,1766908230,1766909548,1766909662,1766910866,1766910912,1766912460"
   },
   {
-    "url": "单依纯/单依纯 - 不值得 (Live).flac",
-    "title": "单依纯 - 不值得 (Live)",
-    "name": "单依纯 - 不值得 (Live)",
-    "type": "local",
-    "duration": 0,
-    "ts": 1766911755,
-    "thumbnail_url": null,
-    "artist": "单依纯 - 不值得 (Live)",
-    "file_name": "单依纯 - 不值得 (Live).flac",
-    "file_extension": ".flac",
-    "file_size": 0,
-    "play_count": 11,
-    "timestamps": "1766633399,1766895736,1766896321,1766897038,1766898022,1766898207,1766907541,1766911617,1766911709,1766911745,1766911755"
-  },
-  {
     "url": "SF6/1-02. Luke's Theme - Taking Aim.mp3",
     "title": "1-02. Luke's Theme - Taking Aim",
     "name": "1-02. Luke's Theme - Taking Aim",
@@ -176,20 +190,6 @@
     "file_size": 0,
     "play_count": 8,
     "timestamps": "1766836714,1766837443,1766837566,1766891630,1766891977,1766894326,1766894542,1766896214"
-  },
-  {
-    "url": "https://www.youtube.com/watch?v=PisAtilDIis",
-    "title": "【歌手2025·纯享】 #单依纯《君》“经典传承”！创新串烧改编 传递跨越时空的怀念 |《歌手2025》| SINGER 2025｜MangoTV",
-    "name": "【歌手2025·纯享】 #单依纯《君》“经典传承”！创新串烧改编 传递跨越时空的怀念 |《歌手2025》| SINGER 2025｜MangoTV",
-    "type": "youtube",
-    "duration": 0,
-    "ts": 1766895986,
-    "thumbnail_url": "https://img.youtube.com/vi/PisAtilDIis/maxresdefault.jpg",
-    "artist": "【歌手2025·纯享】 #单依纯《君》“经典传承”！创新串烧改编 传递跨越时空的怀念 |《歌手2025》| SINGER 2025｜MangoTV",
-    "stream_type": "youtube",
-    "video_id": "PisAtilDIis",
-    "play_count": 17,
-    "timestamps": "1766638798,1766821788,1766822611,1766887215,1766889144,1766889471,1766890024,1766890073,1766890204,1766890339,1766890611,1766890789,1766890858,1766890927,1766891886,1766895665,1766895986"
   },
   {
     "url": "SF6/1-08. Juri's Theme - ÅrachniD＊＊.mp3",

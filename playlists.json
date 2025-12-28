@@ -10,14 +10,14 @@
       "name": "正在播放",
       "songs": [
         {
-          "url": "SF6/1-12. E. Honda's Theme - Kumadori.mp3",
-          "title": "1-12. E. Honda's Theme - Kumadori",
-          "name": "1-12. E. Honda's Theme - Kumadori",
+          "url": "单依纯/单依纯 - 不值得 (Live).flac",
+          "title": "单依纯 - 不值得 (Live)",
+          "name": "单依纯 - 不值得 (Live)",
           "type": "local",
           "duration": 0,
-          "ts": 1766912926,
+          "ts": 1766913081,
           "thumbnail_url": null,
-          "artist": "1-12. E. Honda's Theme - Kumadori"
+          "artist": "单依纯 - 不值得 (Live)"
         },
         {
           "url": "https://www.youtube.com/watch?v=PisAtilDIis",
@@ -28,6 +28,16 @@
           "ts": 1766913113,
           "thumbnail_url": "https://img.youtube.com/vi/PisAtilDIis/default.jpg",
           "artist": "【歌手2025·纯享】 #单依纯《君》“经典传承”！创新串烧改编 传递跨越时空的怀念 |《歌手2025》| SINGER 2025｜MangoTV"
+        },
+        {
+          "url": "SF6/1-12. E. Honda's Theme - Kumadori.mp3",
+          "title": "1-12. E. Honda's Theme - Kumadori",
+          "name": "1-12. E. Honda's Theme - Kumadori",
+          "type": "local",
+          "duration": 0,
+          "ts": 1766912926,
+          "thumbnail_url": null,
+          "artist": "1-12. E. Honda's Theme - Kumadori"
         },
         {
           "url": "https://www.youtube.com/watch?v=1s3Lgj1FrTM",
@@ -58,21 +68,11 @@
           "ts": 1766913084,
           "thumbnail_url": null,
           "artist": "1-03. Ryu's Theme - Viator"
-        },
-        {
-          "url": "单依纯/单依纯 - 不值得 (Live).flac",
-          "title": "单依纯 - 不值得 (Live)",
-          "name": "单依纯 - 不值得 (Live)",
-          "type": "local",
-          "duration": 0,
-          "ts": 1766913081,
-          "thumbnail_url": null,
-          "artist": "单依纯 - 不值得 (Live)"
         }
       ],
       "song_count": 6,
       "created_at": 1766369731.0493586,
-      "updated_at": 1766913113.7461488,
+      "updated_at": 1766913694.9713452,
       "current_playing_index": -1
     },
     {

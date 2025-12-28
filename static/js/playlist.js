@@ -1641,19 +1641,29 @@ async function showPlaybackHistory() {
 }
 
 // ✅ 新增：关闭历史模态框并返回默认歌单列表
-function closeHistoryModal(historyModal) {
+async function closeHistoryModal(historyModal) {
     historyModal.classList.remove('modal-visible');
-    setTimeout(() => {
+    setTimeout(async () => {
         historyModal.style.display = 'none';
         
-        // 重新渲染默认歌单列表（刷新显示）
+        // ✅【修复】获取最新的播放状态，而不是使用缓存数据
         const container = document.getElementById('playListContainer');
-        const status = window.app?.lastPlayStatus || { current_meta: null };
+        let currentStatus = { current_meta: null };
+        try {
+            const latestStatus = await api.getStatus();
+            if (latestStatus && latestStatus.current_meta) {
+                currentStatus = latestStatus;
+            }
+        } catch (err) {
+            console.warn('[历史] 获取最新播放状态失败:', err);
+            currentStatus = window.app?.lastPlayStatus || { current_meta: null };
+        }
+        
         if (container) {
             renderPlaylistUI({
                 container,
                 onPlay: (song) => window.app?.playSong(song),
-                currentMeta: status.current_meta
+                currentMeta: currentStatus.current_meta
             });
         }
         
