@@ -317,12 +317,26 @@ export const localFiles = {
         const songData = { url: filePath, title: fileName, type: 'local' };
 
         try {
+            // ✅ 计算正确的插入位置：从后端获取当前播放索引
+            let insertIndex = 0;  // 默认插入位置为顶部
+            try {
+                const response = await fetch('/status');
+                const status = await response.json();
+                const currentIndex = status?.current_index ?? -1;
+                insertIndex = Math.max(0, currentIndex + 1);
+                console.log('[本地文件] 从后端获取当前播放索引:', { currentIndex, insertIndex });
+            } catch (err) {
+                console.warn('[本地文件] 无法获取后端状态，使用默认值:', err);
+                insertIndex = 0;
+            }
+
             const response = await fetch('/playlist_add', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     playlist_id: playlistId,
-                    song: songData
+                    song: songData,
+                    insert_index: insertIndex
                 })
             });
 

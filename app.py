@@ -1594,7 +1594,23 @@ async def remove_song_from_playlist(playlist_id: str, request: Request):
         playlist.updated_at = time.time()
         PLAYLISTS_MANAGER.save()
         
-        logger.info(f"[SUCCESS] 从歌单 {playlist_id} 删除成功，剩余歌曲数: {len(playlist.songs)}")
+        # ✅ 【修复】仅当删除的是当前播放歌单时，才更新 PLAYER.current_index
+        if playlist_id == DEFAULT_PLAYLIST_ID:
+            logger.info(f"[删除验证] 删除的是默认歌单，检查 PLAYER.current_index 更新")
+            logger.info(f"[删除验证] 删除前 current_index={PLAYER.current_index}, 被删索引={index}, 歌单长度={len(playlist.songs)}")
+            if PLAYER.current_index >= len(playlist.songs):
+                # 如果 current_index 超出范围，调整到最后一首歌（或 -1 如果队列空）
+                PLAYER.current_index = max(-1, len(playlist.songs) - 1)
+                logger.info(f"[删除验证] ✓ 调整 current_index 到 {PLAYER.current_index}（超出范围）")
+            elif index < PLAYER.current_index:
+                # 如果删除的是当前播放歌曲之前的歌曲，将索引左移
+                PLAYER.current_index -= 1
+                logger.info(f"[删除验证] ✓ 调整 current_index 到 {PLAYER.current_index}（删除了前面的歌曲）")
+            # 如果 index > PLAYER.current_index，无需变化
+            logger.info(f"[SUCCESS] 从歌单 {playlist_id} 删除成功，剩余歌曲数: {len(playlist.songs)}, 调整后 current_index={PLAYER.current_index}")
+        else:
+            logger.info(f"[SUCCESS] 从歌单 {playlist_id} 删除成功，剩余歌曲数: {len(playlist.songs)} (非默认歌单，不修改 PLAYER.current_index)")
+        
         return JSONResponse({"status": "OK", "message": "删除成功"})
         
     except Exception as e:
@@ -1779,7 +1795,18 @@ async def playlist_remove(request: Request):
         playlist.updated_at = time.time()
         PLAYLISTS_MANAGER.save()
         
-        logger.info(f"[SUCCESS] 删除成功，剩余歌曲数: {len(playlist.songs)}")
+        # ✅ 【修复】删除歌曲后更新 PLAYER.current_index，维护队列不变量
+        logger.info(f"[删除验证] 删除前 current_index={PLAYER.current_index}, 被删索引={index}, 歌单长度={len(playlist.songs)}")
+        if PLAYER.current_index >= len(playlist.songs):
+            # 如果 current_index 超出范围，调整到最后一首歌（或 -1 如果队列空）
+            PLAYER.current_index = max(-1, len(playlist.songs) - 1)
+            logger.info(f"[删除验证] ✓ 调整 current_index 到 {PLAYER.current_index}（超出范围）")
+        elif index < PLAYER.current_index:
+            # 如果删除的是当前播放歌曲之前的歌曲，将索引左移
+            PLAYER.current_index -= 1
+            logger.info(f"[删除验证] ✓ 调整 current_index 到 {PLAYER.current_index}（删除了前面的歌曲）")
+        # 如果 index > PLAYER.current_index，无需变化
+        logger.info(f"[SUCCESS] 删除成功，剩余歌曲数: {len(playlist.songs)}, 调整后 current_index={PLAYER.current_index}")
         return JSONResponse({"status": "OK", "message": "删除成功"})
         
     except Exception as e:
@@ -1800,6 +1827,11 @@ async def playlist_clear():
             playlist.songs = []
             playlist.updated_at = time.time()
             PLAYLISTS_MANAGER.save()
+            
+            # ✅ 【修复】清空队列时重置 PLAYER.current_index
+            PLAYER.current_index = -1
+            logger.info(f"[清空队列] 队列已清空，重置 PLAYER.current_index = -1")
+        
         return JSONResponse({"status": "OK", "message": "清空成功"})
     except Exception as e:
         return JSONResponse(

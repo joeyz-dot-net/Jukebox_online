@@ -266,9 +266,20 @@ async function addAllSongsToDefault(playlist, selectedPlaylistId) {
         let skippedCount = 0;
         const failedSongs = [];
         
-        // 获取默认歌单的当前播放位置，用于计算插入位置
-        const defaultCurrentIndex = defaultPlaylist.current_playing_index ?? -1;
-        let insertIndex = Math.max(0, defaultCurrentIndex + 1);
+        // ✅ 获取后端当前播放位置，确保与 PLAYER.current_index 同步
+        let insertIndex = 1;  // 🔧 默认插入位置改为 1（第一首之后，而不是顶部）
+        try {
+            const status = await api.getStatus();
+            const currentIndex = status?.current_index ?? -1;
+            insertIndex = Math.max(1, currentIndex + 1);  // 最小插入位置是 1
+            console.log('[批量添加] 从后端获取当前播放索引:', {currentIndex, insertIndex});
+        } catch (err) {
+            console.warn('[批量添加] 无法获取后端状态，使用默认值 1:', err);
+            // 回退：如果无法获取后端状态，使用歌单数据中的索引
+            const defaultCurrentIndex = defaultPlaylist.current_playing_index ?? -1;
+            insertIndex = Math.max(1, defaultCurrentIndex + 1);  // 最小插入位置是 1
+            console.log('[批量添加] 使用歌单数据中的索引:', insertIndex);
+        }
         
         console.log('[批量添加] 开始添加歌曲:', {
             totalCount: playlist.length,
@@ -386,14 +397,20 @@ export async function playSongFromSelectedPlaylist(song, onPlay) {
             if (!songExists) {
                 console.log('[播放列表] 歌曲不在默认歌单，添加到下一曲位置');
                 
-                // 计算插入位置
-                const currentIndex = defaultPlaylist.current_playing_index ?? -1;
-                const insertIndex = Math.max(0, currentIndex + 1);
-                
-                console.log('[播放列表] 计算插入位置:', {
-                    currentIndex: currentIndex,
-                    insertIndex: insertIndex
-                });
+                // ✅ 从后端获取当前播放索引，确保与 PLAYER.current_index 同步
+                let insertIndex = 1;  // 🔧 默认插入位置改为 1（第一首之后，而不是顶部）
+                try {
+                    const status = await api.getStatus();
+                    const currentIndex = status?.current_index ?? -1;
+                    insertIndex = Math.max(1, currentIndex + 1);  // 最小插入位置是 1
+                    console.log('[播放列表] 从后端获取当前播放索引:', { currentIndex, insertIndex });
+                } catch (err) {
+                    console.warn('[播放列表] 无法获取后端状态，使用默认值 1:', err);
+                    // 回退：如果无法获取后端状态，使用歌单数据中的索引
+                    const currentIndex = defaultPlaylist.current_playing_index ?? -1;
+                    insertIndex = Math.max(1, currentIndex + 1);  // 最小插入位置是 1
+                    console.log('[播放列表] 使用歌单数据中的索引:', insertIndex);
+                }
                 
                 // 调用 API 添加到默认歌单
                 const result = await api.addToPlaylist({
@@ -1505,11 +1522,26 @@ async function showPlaybackHistory() {
                     try {
                         loading.show('📀 准备播放...');
                         
-                        // 添加歌曲到默认播放列表的顶部（insert_index = 0）
+                        // ✅ 计算插入位置：当前播放歌曲的下一个位置（从后端获取实际索引）
+                        let insertIndex = 1;  // 🔧 默认插入位置改为 1（第一首之后，而不是顶部）
+                        
+                        try {
+                            // 从后端获取真实的当前播放索引
+                            const status = await api.getStatus();
+                            const currentIndex = status?.current_index ?? -1;
+                            insertIndex = Math.max(1, currentIndex + 1);  // 最小插入位置是 1
+                            console.log('[历史] 从后端获取当前播放索引:', { currentIndex, insertIndex });
+                        } catch (err) {
+                            // 回退：如果无法获取后端状态，使用默认值 1（第一首之后）
+                            console.warn('[历史] 无法获取后端状态，使用默认位置 1:', err);
+                            insertIndex = 1;
+                        }
+                        
+                        // 添加歌曲到默认播放列表
                         const addResult = await api.addToPlaylist({
                             playlist_id: 'default',
                             song: song,
-                            insert_index: 0  // 插入到顶部
+                            insert_index: insertIndex
                         });
                         
                         if (addResult.status !== 'OK') {
@@ -1533,7 +1565,7 @@ async function showPlaybackHistory() {
                             loading.hide();
                         }
                         
-                        console.log('[历史] 已将歌曲添加到顶部并开始播放:', song.title);
+                        console.log('[历史] 已将歌曲添加到下一曲位置并开始播放:', song.title);
                         
                     } catch (error) {
                         console.error('[历史] 播放失败:', error);

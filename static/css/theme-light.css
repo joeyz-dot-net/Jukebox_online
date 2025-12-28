@@ -541,3 +541,10 @@ body.theme-light {
 .tab-content, #tree {
     background: #ffffff;
 }
+
+/* 历史模态框 - 亮色主题毛玻璃效果 */
+.theme-light .history-modal {
+    background: rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}

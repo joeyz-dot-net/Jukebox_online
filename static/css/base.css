@@ -1395,6 +1395,16 @@ button:active { transform: scale(0.98); }
     right: 0;
     bottom: 0;
     z-index: 999;
+    /* 毛玻璃效果 - 遮挡背景 */
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.history-modal.modal-visible {
+    opacity: 1;
 }
 
 .history-modal-content {

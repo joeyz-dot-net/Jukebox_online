@@ -3,7 +3,7 @@
 **Full-stack web music player**: FastAPI + ES6 modules + MPV IPC engine.  
 **Key distinction**: Bilingual (zh/en), user-isolation via localStorage, multi-singleton architecture, Windows/PyInstaller-optimized.
 
-> **Last Updated**: 2025-12-27 | **Focus**: Production-ready patterns, user-isolation architecture, ES6 module state management
+> **Last Updated**: 2025-12-27 | **Focus**: Production-ready patterns, user-isolation architecture, ES6 module state management, backend event listening
 
 ## ⚠️ Critical Rules (Must-Know)
 
@@ -25,17 +25,36 @@
 
 ```
 Browser ←poll /status→ FastAPI (app.py) ←→ Singletons ←→ MPV (\\.\pipe\mpv-pipe)
-   │                         │
-   ├── ES6 modules ──────────┴── models/*.py (Song, Playlist, Player, Rank)
-   └── localStorage (selectedPlaylistId, theme, language)
+   │                         │                              ↑
+   ├── ES6 modules ──────────┴── models/*.py               │
+   └── localStorage                  └─ Backend event listener (detects end-file)
+       (selectedPlaylistId,                 └─ Auto-deletes current song + plays next
+        theme, language)                       (NO frontend intervention needed)
                                     └── playlists.json, playback_history.json
 ```
+
+### 🎵 Auto-Next Flow (BACKEND-CONTROLLED)
+
+**Critical**: Auto-next is **100% backend-controlled**. Frontend only displays status changes.
+
+1. **Song Ends**: MPV emits `end-file` event to IPC pipe
+2. **Backend Listens**: [player.py#L405-530](../models/player.py#L405-L530) `_start_event_listener()` daemon thread detects event
+3. **Auto-delete**: `handle_playback_end()` deletes current song from default playlist
+4. **Auto-play**: Immediately plays remaining `songs[0]` if queue exists
+5. **Frontend**: Next `/status` poll shows new song in `current_meta` → UI updates
+
+**Key Details**:
+- Event listener runs in background even with polling paused (never blocked)
+- Deletion uses URL matching: `current_meta.url` or `current_meta.rel` or `current_meta.raw_url`
+- No race conditions: Only one auto-next per song completion (prevented by event-driven design)
+- **Frontend doesn't trigger auto-next**: User sees result via status polling, not manual API calls
 
 ### Data Flow: Playback
 1. User clicks song → `player.js:play()` → `api.js:play()` → POST `/play`
 2. Backend: `app.py` → `PLAYER.play(song)` → MPV IPC `loadfile` command
 3. Frontend polls `/status` every 1s → updates UI via `player.js:updateStatus()`
-4. Auto-next: When `timeRemaining < 2.5s`, `main.js` triggers next song
+4. **Auto-next (backend)**: MPV emits `end-file` → backend event listener → auto-deletes + plays next
+5. Frontend polls `/status` → sees new `current_meta` → displays new song
 
 ### Key Files & Responsibilities
 
@@ -157,7 +176,10 @@ Frontend polling (every 1s `GET /status`) is critical for responsive UI. Safari 
 | Playlist appears empty in another browser | Each browser has independent `localStorage.selectedPlaylistId` | This is intentional—user isolation feature |
 | MPV won't start | IPC pipe busy OR mpv.exe path wrong | Kill lingering processes: `taskkill /IM mpv.exe /F`, check [settings.ini](../settings.ini) |
 | Drag-sort freezes UI | `operationLock` not released on `touchcancel` | Verify both listeners exist in [playlist.js#L450-500](../static/js/playlist.js#L450-L500) |
-| Auto-next not triggering | `_autoNextTriggered` flag stuck true | Check timeout in [main.js#L540](../static/js/main.js#L540) clears flag |
+| Auto-next not triggering | Backend event listener crashed or MPV pipe disconnected | Check server logs for `[事件监听]` errors, verify `\\.\pipe\mpv-pipe` exists |
+| Song won't play after adding from non-default playlist | Frontend didn't add to default playlist queue | Check [playlist.js](../static/js/playlist.js) `playSongFromSelectedPlaylist()` function |
+| Duplicate songs in queue | Code didn't check URL before adding | All `/playlist_add` calls must validate via `api.addToPlaylist()` which returns 409 Conflict |
+| Current index out of sync | Backend `PLAYER.current_index` ≠ actual position | After deletions, verify [app.py](../app.py) `/playlists/{id}/remove` recalculates index |
 
 ## User-Isolation & State Management (Critical Pattern)
 
@@ -172,6 +194,13 @@ Frontend polling (every 1s `GET /status`) is critical for responsive UI. Safari 
 - Backend [app.py#L1355-1420](../app.py#L1355-L1420): `/playlist` endpoint receives `playlist_id` from frontend, not global state
 - **Pattern**: Never sync playlist selection from server to frontend—trust frontend's localStorage as source of truth
 
+**State Sync Rules**:
+- Playback state (`paused`, `time_pos`, `volume`): Server is source of truth (via MPV)
+- Playlist order/content: Server is source of truth (via `playlists.json`)
+- Current playlist selection: **Frontend is source of truth** (via `localStorage.selectedPlaylistId`)
+- Theme/Language: Frontend only (via `localStorage`)
+- Do NOT add playlist selection to HTTP response headers or backend state—would break multi-tab isolation
+
 ## Frontend Module System
 
 ES6 modules in [static/js/](../static/js/):
@@ -182,16 +211,30 @@ ES6 modules in [static/js/](../static/js/):
 - **State**: `localStorage` keys: `selectedPlaylistId`, `theme`, `language`
 - **Operation Lock**: [operationLock.js](../static/js/operationLock.js) prevents concurrent API calls during drag/reorder
 
-## Auto-Next & Track End Detection
+## Advanced Patterns & Edge Cases
 
-**When current song ends** ([main.js#L410-530](../static/js/main.js#L410-L530)):
-1. `updatePlayerUI()` detects `timeRemaining < 2.5s` + `isPlaying === true`
-2. Calls `removeCurrentSongFromPlaylist()` → removes first song from "default" playlist
-3. Immediately plays first song of remaining list
-4. Uses `operationLock` to prevent concurrent deletions during user gestures
-5. **Fallback strategy**: Tries frontend removal → backend `/next` endpoint → manual user selection
+### URL Transformation & History Tracking
+- YouTube URLs via yt-dlp may transform from `youtu.be/ID` → full `youtube.com/watch?v=ID`
+- **Critical**: Always save ORIGINAL URL to `playback_history.json` BEFORE transformation
+- Ranking system matches on original URL, not transformed URL
+- [models/song.py](../models/song.py): `StreamSong.play()` applies transformation AFTER history save
 
-**Key detail**: Playlist deletion is intentional—tracks are auto-removed after completion to prevent replay. This differs from typical players that keep history.
+### Current Index Management
+- `PLAYER.current_index` tracks position in current playing playlist
+- Frontend updates this when adding songs at specific positions
+- Auto-next logic: Deletes current song at index 0, then plays new `songs[0]`
+- **Gotcha**: Don't confuse frontend `playlistManager.currentPlaylist` (data) with `PLAYER.current_index` (playback state)
+
+### Duplicate Detection in Playlists
+- Every `/playlist_add` call checks `song.url` against existing songs
+- Returns 409 Conflict if duplicate found (prevents duplicates in queue)
+- Each playlist independently tracks URL set via `playlistManager.urlSet`
+
+### Operation Lock Lifecycle
+- Acquired during drag, editing, or critical UI operations
+- **Must release** in both `touchend` AND `touchcancel` handlers (not just one)
+- Releasing when lock doesn't exist is safe (no-op)
+- Timeout cleanup at 30 seconds prevents forever-locked state
 
 ## Modal Navigation Stack
 
@@ -251,6 +294,63 @@ interactive_select_audio_device()  # Prompts for WASAPI output
 ## Development Commands
 
 **Essential workflows** for immediate development:
+```powershell
+# 🚀 Start development server (with audio device selection)
+python main.py
+
+# 📦 Build executable for distribution
+.\build_exe.bat                    # Creates dist/ClubMusic.exe
+
+# 🔧 Development verification commands  
+Get-Process mpv                    # Confirm MPV process running
+Test-Path "\\.\pipe\mpv-pipe"     # Confirm MPV IPC pipe exists  
+taskkill /IM mpv.exe /F           # Force-kill stuck MPV processes
+
+# 🔍 Quick dependency check
+pip install -r requirements.txt   # Install/update dependencies
+python -c "import fastapi, uvicorn, mutagen" # Verify core imports
+```
+
+**VS Code Integration**: Use task runner (`Ctrl+Shift+B`) for build operations. Tasks are defined in workspace-level configuration accessible via `run_task` tool.
+
+## Testing & Verification Patterns
+
+### Backend Testing (Manual)
+```powershell
+# Test auto-next event listener
+1. Start server: python main.py
+2. Play a short song (3-5 seconds)
+3. Watch server logs for "[事件监听]" events
+4. Verify "📂 [MPV 命令] loadfile" appears for next song
+5. Check /status endpoint shows new song_url
+
+# Test playlist isolation (multi-browser)
+1. Open Browser A → add song to "default" playlist
+2. Open Browser B → add different song to "my-playlist"
+3. Each browser should show independent queue (localStorage.selectedPlaylistId differ)
+4. Verify no "push" from backend changes browser selections
+
+# Test YouTube URL transformation
+1. Search YouTube song, play it
+2. Check playback_history.json → original youtu.be URL stored
+3. Verify /status shows transformed URL (direct stream link)
+4. Ranking should match on original URL
+```
+
+### Frontend Testing Checklist
+- **Polling state**: Open DevTools Console → verify `[播放器] ▶️ 正在播放` logs every 1s
+- **Operation lock**: Start drag → Console should show `[操作锁] 获取锁: drag` → polling pauses
+- **localStorage sync**: Clear localStorage → F5 refresh → verify reset to defaults (selected Playlist = 'default', theme = 'dark')
+- **FormData mismatch**: Try `api.post('/play', {...})` instead of `api.postForm()` → should get 400 error
+
+### Known Blocking Issues to Avoid
+1. **Never use `async/await` in `/status` route**: Would block polling, making UI freeze. Keep it synchronous.
+2. **Never modify `PLAYER.current_index` outside playback logic**: Breaks auto-next tracking. Only update in `PLAYER.play()` or deletion handlers.
+3. **Never re-render entire playlist in `/status` poll response**: Heavy DOM updates cause jank. Only update changed songs via diff logic.
+4. **Never call `loadAll()` without `loadCurrent()`**: Stale playlist data. Always refresh both: `loadAll()` → `loadCurrent()`.
+5. **Never release operation lock in timeout**: Could block concurrent operations. Use explicit release in event handlers.
+
+## Development Commands
 ```powershell
 # 🚀 Start development server (with audio device selection)
 python main.py

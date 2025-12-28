@@ -361,11 +361,11 @@ export class SearchManager {
                                         try {
                                             const status = await api.getStatus();
                                             const currentIndex = status?.current_index ?? -1;
-                                            insertIndex = Math.max(0, currentIndex + 1);
+                                            insertIndex = Math.max(1, currentIndex + 1);
                                             console.log('[搜索] 计算插入位置:', insertIndex);
                                         } catch (err) {
-                                            console.warn('[搜索] 无法获取当前位置，使用默认值', err);
-                                            insertIndex = 0;
+                                            console.warn('[搜索] 无法获取当前位置，使用默认位置 1', err);
+                                            insertIndex = 1;
                                         }
                                     }
                                     
@@ -419,12 +419,26 @@ export class SearchManager {
                         }
                     } else {
                         // ✅ 文件处理：添加单个歌曲
+                        // ✅ 计算正确的插入位置：从后端获取当前播放索引
+                        let insertIndex = 1;  // 🔧 默认插入位置改为 1（第一首之后，而不是顶部）
+                        try {
+                            const statusResponse = await fetch('/status');
+                            const status = await statusResponse.json();
+                            const currentIndex = status?.current_index ?? -1;
+                            insertIndex = Math.max(1, currentIndex + 1);
+                            console.log('[搜索-单文件] 从后端获取当前播放索引:', { currentIndex, insertIndex });
+                        } catch (err) {
+                            console.warn('[搜索-单文件] 无法获取后端状态，使用默认位置 1:', err);
+                            insertIndex = 1;
+                        }
+
                         const response = await fetch('/playlist_add', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 playlist_id: playlistId,
-                                song: songData
+                                song: songData,
+                                insert_index: insertIndex
                             })
                         });
                         
