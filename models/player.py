@@ -36,10 +36,11 @@ class MusicPlayer:
         "SERVER_HOST": "0.0.0.0",
         "SERVER_PORT": "80",
         "DEBUG": "false",
-        "MPV_CMD": r'bin\mpv.exe --input-ipc-server=\\.\pipe\mpv-pipe --idle=yes --force-window=no --no-video',
+        "MPV_CMD": r'bin\mpv.exe --input-ipc-server=\\.\\pipe\\mpv-pipe --idle=yes --force-window=no --no-video',
         "LOCAL_SEARCH_MAX_RESULTS": "20",
         "YOUTUBE_SEARCH_MAX_RESULTS": "20",
         "LOCAL_VOLUME": "50",
+        "PLAYBACK_HISTORY_MAX": "9999",
     }
 
     @staticmethod
@@ -159,6 +160,7 @@ class MusicPlayer:
         data_dir=".",
         local_search_max_results=20,
         youtube_search_max_results=10,
+        playback_history_max=9999,
     ):
         """
         初始化音乐播放器
@@ -223,13 +225,16 @@ class MusicPlayer:
         self.mpv_process = None
 
         # 播放历史 - 使用 PlayHistory 类
-        self.playback_history_file = os.path.join(
-            self.data_dir, "playback_history.json"
-        )
+        self.playback_history_file = os.path.join(self.data_dir, "playback_history.json")
+        # 支持通过参数或配置文件设置最大保留条数
+        try:
+            self.playback_history_max = int(playback_history_max)
+        except Exception:
+            self.playback_history_max = 9999
+
         self.playback_history = PlayHistory(
-            max_size=50, file_path=self.playback_history_file
+            max_size=self.playback_history_max, file_path=self.playback_history_file
         )
-        self.playback_history_max = 50  # 保留以保持兼容性
 
         # 播放队列
         from models import CurrentPlaylist
@@ -327,6 +332,7 @@ class MusicPlayer:
         
         local_search_max = cfg.get("LOCAL_SEARCH_MAX_RESULTS", cls.DEFAULT_CONFIG["LOCAL_SEARCH_MAX_RESULTS"])
         youtube_search_max = cfg.get("YOUTUBE_SEARCH_MAX_RESULTS", cls.DEFAULT_CONFIG["YOUTUBE_SEARCH_MAX_RESULTS"])
+        playback_history_max = cfg.get("PLAYBACK_HISTORY_MAX", cls.DEFAULT_CONFIG.get("PLAYBACK_HISTORY_MAX", 9999))
         logger.info(f"  LOCAL_SEARCH_MAX_RESULTS: {local_search_max}")
         logger.info(f"  YOUTUBE_SEARCH_MAX_RESULTS: {youtube_search_max}")
         logger.info(f"===== 配置加载完成 =====\n")
@@ -341,6 +347,7 @@ class MusicPlayer:
             data_dir=data_dir,
             local_search_max_results=local_search_max,
             youtube_search_max_results=youtube_search_max,
+            playback_history_max=playback_history_max,
         )
         
         # 保存完整配置供后续使用（路径、FFmpeg参数等）

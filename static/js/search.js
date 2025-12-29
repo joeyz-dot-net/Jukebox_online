@@ -222,9 +222,41 @@ export class SearchManager {
             
             const localResults = result.local || [];
             const youtubeResults = result.youtube || [];
-            
-            // 渲染搜索结果
-            this.renderSearchResults(localResults, youtubeResults);
+
+
+                // 拉取已合并的播放历史并按 query 过滤后传入渲染（使历史成为一个独立标签）
+                let history = [];
+                try {
+                    const hres = await api.getPlaybackHistoryMerged();
+                    if (hres && hres.status === 'OK') {
+                        history = hres.history || [];
+
+                        // 按查询关键词过滤历史（大小写不敏感，匹配 title/url/uploader/artist）
+                        try {
+                            const q = (query || '').toString().trim().toLowerCase();
+                            if (q) {
+                                history = history.filter(item => {
+                                    try {
+                                        const title = (item.title || item.name || '').toString().toLowerCase();
+                                        const url = (item.url || item.rel || '').toString().toLowerCase();
+                                        const uploader = (item.uploader || item.artist || '').toString().toLowerCase();
+                                        return title.includes(q) || url.includes(q) || uploader.includes(q);
+                                    } catch (e) {
+                                        return false;
+                                    }
+                                });
+                            }
+                        } catch (e) {
+                            console.warn('[搜索] 播放历史过滤失败:', e);
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[搜索] 获取播放历史失败:', e);
+                    history = [];
+                }
+
+                // 渲染搜索结果（包含已过滤的播放历史标签）
+                this.renderSearchResults(localResults, youtubeResults, history);
             
         } catch (error) {
             console.error('搜索失败:', error);
@@ -236,10 +268,9 @@ export class SearchManager {
     }
 
     // 渲染搜索结果
-    renderSearchResults(localResults, youtubeResults) {
+    renderSearchResults(localResults, youtubeResults, historyResults = []) {
         const searchModalBody = document.getElementById('searchModalBody');
         if (!searchModalBody) return;
-
         const buildList = (items, type) => {
             if (!items || items.length === 0) {
                 return '<div class="search-empty">暂无结果</div>';
@@ -268,12 +299,14 @@ export class SearchManager {
             }).join('');
         };
 
-        const defaultTab = localResults.length > 0 ? 'local' : 'youtube';
+            // 选择默认标签：优先本地，其次网络，其次播放历史
+            const defaultTab = localResults.length > 0 ? 'local' : (youtubeResults.length > 0 ? 'youtube' : (historyResults.length > 0 ? 'history' : 'local'));
 
         searchModalBody.innerHTML = `
             <div class="search-tabs">
                 <button class="search-tab ${defaultTab === 'local' ? 'active' : ''}" data-tab="local">本地 (${localResults.length})</button>
                 <button class="search-tab ${defaultTab === 'youtube' ? 'active' : ''}" data-tab="youtube">网络 (${youtubeResults.length})</button>
+                    <button class="search-tab ${defaultTab === 'history' ? 'active' : ''}" data-tab="history">播放历史 (${historyResults.length})</button>
             </div>
             <div class="search-tab-panels">
                 <div class="search-results-panel ${defaultTab === 'local' ? 'active' : ''}" data-panel="local">
@@ -282,6 +315,9 @@ export class SearchManager {
                 <div class="search-results-panel ${defaultTab === 'youtube' ? 'active' : ''}" data-panel="youtube">
                     ${buildList(youtubeResults, 'youtube')}
                 </div>
+                    <div class="search-results-panel ${defaultTab === 'history' ? 'active' : ''}" data-panel="history">
+                        ${buildList(historyResults, 'history')}
+                    </div>
             </div>
         `;
 
@@ -438,8 +474,7 @@ export class SearchManager {
                         }
                     } else {
                         // ✅ 文件处理：添加单个歌曲
-                        // ✅ 计算正确的插入位置：从后端获取当前播放索引
-                        let insertIndex = 1;  // 🔧 默认插入位置改为 1（第一首之后，而不是顶部）
+                        let insertIndex = 1; // 声明并默认初始化，防止 ReferenceError
                         try {
                             const statusResponse = await fetch('/status');
                             const status = await statusResponse.json();
@@ -480,7 +515,7 @@ export class SearchManager {
                             try {
                                 await playlistManager.loadCurrent();
                                 await playlistManager.loadAll();
-                                
+
                                 const container = document.getElementById('playListContainer');
                                 const currentStatus = window.app?.lastPlayStatus || { current_meta: null };
                                 if (container && window.app?.modules?.playlistManager) {
@@ -490,7 +525,7 @@ export class SearchManager {
                                         onPlay: (s) => window.app?.playSong(s),
                                         currentMeta: currentStatus.current_meta
                                     });
-                                    console.log('[搜索] ✓ 播放列表已刷新 - 添加了: ' + songData.title);
+                                    console.log('[搜索] ✓ 播放列表已刷新 - 已添加单曲');
                                 }
                             } catch (err) {
                                 console.warn('[搜索] 刷新播放列表失败:', err);

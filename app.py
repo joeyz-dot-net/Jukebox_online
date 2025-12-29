@@ -323,6 +323,41 @@ def auto_fill_and_play_if_idle():
         except Exception as e:
             logger.warning(f"[自动填充] 收集歌单歌曲失败: {e}")
 
+        # 从播放历史中补充网络歌曲（YouTube / stream / http）
+        try:
+            history_items = []
+            try:
+                # PLAYBACK_HISTORY 是全局的 PlayHistory 实例
+                history_items = PLAYBACK_HISTORY.get_all() if hasattr(PLAYBACK_HISTORY, 'get_all') else []
+            except Exception as he:
+                logger.debug(f"[自动填充] 读取播放历史失败: {he}")
+
+            for h in history_items:
+                try:
+                    if not h:
+                        continue
+                    # h 可能是 dict 格式
+                    url = h.get('url') if isinstance(h, dict) else None
+                    typ = (h.get('type') if isinstance(h, dict) else None) or ''
+                    if not url:
+                        continue
+                    url = str(url).strip()
+                    # 只补充网络歌曲
+                    if typ in ('youtube', 'stream') or url.startswith('http'):
+                        song_entry = {
+                            'url': url,
+                            'title': h.get('title') if isinstance(h, dict) else os.path.basename(url),
+                            'type': typ or ('youtube' if 'youtube' in url.lower() or 'youtu.be' in url.lower() else 'stream'),
+                            'duration': h.get('duration', 0) if isinstance(h, dict) else 0,
+                            'thumbnail_url': h.get('thumbnail_url') if isinstance(h, dict) else None
+                        }
+                        all_songs.append(song_entry)
+                except Exception as e:
+                    logger.debug(f"[自动填充] 处理播放历史项失败: {e}")
+        except Exception:
+            # 容错：历史读取失败不影响自动填充其他来源
+            pass
+
         # 本地文件树补充（不覆盖已有同url条目）
         def collect_local(node):
             items = []
