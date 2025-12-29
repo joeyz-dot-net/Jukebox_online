@@ -63,7 +63,7 @@ export const settingsManager = {
             this.bindEvents();
             
             // 检查服务器推流状态，更新UI
-            await this.checkServerStreamingStatus();
+            //await this.checkServerStreamingStatus();
             
             // 同步推流状态到 localStorage
             const autoStream = this.getSettings('auto_stream') === 'true' || this.getSettings('auto_stream') === true;
@@ -79,67 +79,67 @@ export const settingsManager = {
     /**
      * 检查服务器推流状态，更新UI可用性
      */
-    async checkServerStreamingStatus() {
-        try {
-            const response = await api.get('/config/streaming-enabled');
-            const streamingEnabled = response.streaming_enabled;
+    // async checkServerStreamingStatus() {
+    //     try {
+    //         const response = await api.get('/config/streaming-enabled');
+    //         const streamingEnabled = response.streaming_enabled;
             
-            const autoStreamCheckbox = document.getElementById('autoStreamSetting');
-            const streamSettingsSection = document.querySelector('[data-stream-settings]') || 
-                                        document.querySelector('.stream-settings-section');
+    //         const autoStreamCheckbox = document.getElementById('autoStreamSetting');
+    //         const streamSettingsSection = document.querySelector('[data-stream-settings]') || 
+    //                                     document.querySelector('.stream-settings-section');
             
-            if (streamingEnabled) {
-                console.log('[推流] 服务器已启用推流功能');
-                // 启用推流选项
-                if (autoStreamCheckbox) {
-                    autoStreamCheckbox.disabled = false;
-                }
-                if (streamSettingsSection) {
-                    streamSettingsSection.classList.remove('disabled');
-                    streamSettingsSection.title = '';
-                }
-                // 更新指示器为关闭状态（服务器启用，客户端未启用）
-                this.updateStreamStatusIndicator('closed');
-            } else {
-                console.warn('[推流] 服务器已禁用推流功能，禁用客户端推流选项');
-                // 禁用推流选项
-                if (autoStreamCheckbox) {
-                    autoStreamCheckbox.disabled = true;
-                    autoStreamCheckbox.checked = false;
-                }
-                // 更新localStorage
-                this.setSetting('auto_stream', false);
-                localStorage.setItem('streamActive', 'false');
+    //         if (streamingEnabled) {
+    //             console.log('[推流] 服务器已启用推流功能');
+    //             // 启用推流选项
+    //             if (autoStreamCheckbox) {
+    //                 autoStreamCheckbox.disabled = false;
+    //             }
+    //             if (streamSettingsSection) {
+    //                 streamSettingsSection.classList.remove('disabled');
+    //                 streamSettingsSection.title = '';
+    //             }
+    //             // 更新指示器为关闭状态（服务器启用，客户端未启用）
+    //             this.updateStreamStatusIndicator('closed');
+    //         } else {
+    //             console.warn('[推流] 服务器已禁用推流功能，禁用客户端推流选项');
+    //             // 禁用推流选项
+    //             if (autoStreamCheckbox) {
+    //                 autoStreamCheckbox.disabled = true;
+    //                 autoStreamCheckbox.checked = false;
+    //             }
+    //             // 更新localStorage
+    //             this.setSetting('auto_stream', false);
+    //             localStorage.setItem('streamActive', 'false');
                 
-                if (streamSettingsSection) {
-                    streamSettingsSection.classList.add('disabled');
-                    streamSettingsSection.title = '服务器已禁用推流功能';
-                }
+    //             if (streamSettingsSection) {
+    //                 streamSettingsSection.classList.add('disabled');
+    //                 streamSettingsSection.title = '服务器已禁用推流功能';
+    //             }
                 
-                // 停止任何正在运行的推流
-                this.stopStream();
-                // 注意：不再显示 toast 提示，因为按钮已被隐藏，避免每次刷新都提示
+    //             // 停止任何正在运行的推流
+    //             this.stopStream();
+    //             // 注意：不再显示 toast 提示，因为按钮已被隐藏，避免每次刷新都提示
                 
-                // 更新指示器为禁止状态
-                this.updateStreamStatusIndicator('disabled');
+    //             // 更新指示器为禁止状态
+    //             this.updateStreamStatusIndicator('disabled');
                 
-                // 同时隐藏导航栏的推流按钮
-                const streamNavBtn = document.getElementById('streamNavBtn');
-                if (streamNavBtn) {
-                    streamNavBtn.style.display = 'none';
-                    console.log('[推流] 已隐藏导航栏推流按钮');
-                }
-            }
-        } catch (error) {
-            console.warn('[推流] 检查服务器推流状态失败:', error);
-            // 发生错误时保守地禁用推流
-            const autoStreamCheckbox = document.getElementById('autoStreamSetting');
-            if (autoStreamCheckbox) {
-                autoStreamCheckbox.disabled = true;
-            }
-            this.updateStreamStatusIndicator('disabled');
-        }
-    },
+    //             // 同时隐藏导航栏的推流按钮
+    //             const streamNavBtn = document.getElementById('streamNavBtn');
+    //             if (streamNavBtn) {
+    //                 streamNavBtn.style.display = 'none';
+    //                 console.log('[推流] 已隐藏导航栏推流按钮');
+    //             }
+    //         }
+    //     } catch (error) {
+    //         console.warn('[推流] 检查服务器推流状态失败:', error);
+    //         // 发生错误时保守地禁用推流
+    //         const autoStreamCheckbox = document.getElementById('autoStreamSetting');
+    //         if (autoStreamCheckbox) {
+    //             autoStreamCheckbox.disabled = true;
+    //         }
+    //         this.updateStreamStatusIndicator('disabled');
+    //     }
+    // },
     
     /**
      * 更新推流状态指示器

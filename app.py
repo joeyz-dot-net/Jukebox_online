@@ -23,6 +23,7 @@ from starlette.middleware.cors import CORSMiddleware
 import uuid
 import asyncio
 import queue
+import threading
 
 # ============================================
 # 初始化模块
@@ -210,10 +211,120 @@ app.add_middleware(
 )
 
 
+# ============================================
+# 自动填充队列并自动播放（后台空闲1分钟后无歌曲自动填充）
+# ============================================
+
+def auto_fill_and_play_if_idle():
+    """
+    后台守护线程：如果1分钟内没有歌曲播放且队列为空，自动随机选择10首歌填充并播放
+    """
+    import time
+    import random
+    from models.song import Song
+
+    def get_all_available_songs():
+        # 收集所有歌单（排除default）和本地文件树的歌曲
+        all_songs = []
+        # 1. 所有非默认歌单
+        for pl in PLAYLISTS_MANAGER.get_all():
+            if pl.id != DEFAULT_PLAYLIST_ID and isinstance(pl.songs, list):
+                all_songs.extend(pl.songs)
+        # 2. 本地文件树
+        def collect_local(node, arr):
+            if not node:
+                return
+            if node.get('files'):
+                for f in node['files']:
+                    arr.append({
+                        "url": f['rel'],
+                        "title": f['name'].rsplit('.', 1)[0],
+                        "type": "local"
+                    })
+            if node.get('dirs'):
+                for d in node['dirs']:
+                    collect_local(d, arr)
+        try:
+            tree = PLAYER.local_file_tree
+            collect_local(tree, all_songs)
+        except Exception:
+            pass
+        # 去重
+        url_set = set()
+        unique_songs = []
+        for song in all_songs:
+            url = song.get('url')
+            if url and url not in url_set:
+                url_set.add(url)
+                unique_songs.append(song)
+        return unique_songs
+
+    def fill_and_play():
+        playlist = PLAYLISTS_MANAGER.get_playlist(DEFAULT_PLAYLIST_ID)
+        if not playlist:
+            return
+        # 只在队列为空时填充
+        if playlist.songs:
+            return
+        all_songs = get_all_available_songs()
+        if not all_songs:
+            return
+        random.shuffle(all_songs)
+        selected = all_songs[:10]
+        for idx, song in enumerate(selected):
+            # 直接插入到队列
+            playlist.songs.insert(idx, song)
+        playlist.updated_at = time.time()
+        PLAYLISTS_MANAGER.save()
+        # 自动播放第一首
+        if selected:
+            try:
+                if selected[0].get("type") == "youtube" or str(selected[0].get("url", "")).startswith("http"):
+                    s = StreamSong(stream_url=selected[0]["url"], title=selected[0].get("title", ""))
+                else:
+                    s = LocalSong(file_path=selected[0]["url"], title=selected[0].get("title", ""))
+                PLAYER.play(
+                    s,
+                    mpv_command_func=PLAYER.mpv_command,
+                    mpv_pipe_exists_func=PLAYER.mpv_pipe_exists,
+                    ensure_mpv_func=PLAYER.ensure_mpv,
+                    add_to_history_func=PLAYBACK_HISTORY.add_to_history,
+                    save_to_history=True,
+                    mpv_cmd=PLAYER.mpv_cmd
+                )
+            except Exception as e:
+                logger.error(f"[自动填充] 自动播放失败: {e}")
+
+    def monitor():
+        logger.info("[自动填充] 后台自动填充线程已启动")
+        last_play_ts = time.time()
+        while True:
+            try:
+                # 检查当前是否有歌曲在播放
+                playlist = PLAYLISTS_MANAGER.get_playlist(DEFAULT_PLAYLIST_ID)
+                is_playing = PLAYER.current_meta and PLAYER.current_meta.get("url")
+                # 如果有歌曲在播放，更新时间戳
+                if is_playing:
+                    last_play_ts = time.time()
+                # 如果无歌曲播放且队列为空，且空闲超过60秒，自动填充
+                elif (not playlist or not playlist.songs) and (time.time() - last_play_ts > 30):
+                    logger.info("[自动填充] 检测到空闲超过1分钟且队列为空，自动填充并播放")
+                    fill_and_play()
+                    last_play_ts = time.time()
+                time.sleep(10)
+            except Exception as e:
+                logger.error(f"[自动填充] 线程异常: {e}")
+                time.sleep(10)
+
+    t = threading.Thread(target=monitor, daemon=True, name="AutoFillIdleThread")
+    t.start()
+
+# 在FastAPI启动事件中启动后台线程
 @app.on_event("startup")
 async def startup_event():
     """应用启动时的初始化事件"""
     logger.info("应用启动完成")
+    auto_fill_and_play_if_idle()
 
 @app.on_event("shutdown")
 async def shutdown_event():

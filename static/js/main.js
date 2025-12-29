@@ -1855,19 +1855,52 @@ class MusicPlayerApp {
         console.log('debugPlaylist:', debugPlaylist);
         console.log('debugStorage:', debugStorage);
         
-        // 获取播放器状态
-        const status = player.getStatus();
-        console.log('[DEBUG] player.getStatus():', status);
+        // 优先从本地 player 缓存获取状态，若不可用则主动调用后端 /status 拉取
+        let status = null;
+        try {
+            if (player && typeof player.getStatus === 'function') {
+                status = player.getStatus();
+            }
+        } catch (err) {
+            console.warn('[DEBUG] player.getStatus() 报错:', err);
+            status = null;
+        }
+
+        if (!status) {
+            try {
+                const res = await api.getStatus();
+                // 后端返回 { status: "OK", ... }
+                if (res && res.status === 'OK') {
+                    // 兼容性：把后端字段直接当作 status 使用
+                    status = res;
+                    // 更新前端 player 缓存（如果有 updateStatus 方法）
+                    try {
+                        if (player && typeof player.updateStatus === 'function') {
+                            player.updateStatus(status);
+                        }
+                    } catch (e) {
+                        console.warn('[DEBUG] 更新 player 缓存失败:', e);
+                    }
+                } else {
+                    status = null;
+                }
+            } catch (err) {
+                console.warn('[DEBUG] api.getStatus() 失败:', err);
+                status = null;
+            }
+        }
         
         if (debugPlayer) {
             if (status) {
+                // 兼容后端不同字段名（mpv_state / mpv / mpv_state）
+                const mpv = status.mpv || status.mpv_state || status.mpv_state || {};
                 debugPlayer.innerHTML = `<pre style="margin: 0; color: #51cf66;">${JSON.stringify({
-                    paused: status.paused,
-                    currentTime: status.time_pos || 0,
-                    duration: status.duration || 0,
-                    volume: status.volume || 0,
-                    loopMode: status.loop_mode || 0,
-                    currentSong: status.current_meta?.title || status.current_title || 'N/A'
+                    paused: mpv.paused ?? status.paused ?? false,
+                    currentTime: mpv.time_pos ?? mpv.time ?? status.time_pos ?? 0,
+                    duration: mpv.duration ?? status.duration ?? 0,
+                    volume: mpv.volume ?? status.volume ?? 0,
+                    loopMode: status.loop_mode ?? player?.loop_mode ?? 0,
+                    currentSong: status.current_meta?.title || status.current_title || (status.current_meta && (status.current_meta.name || status.current_meta.title)) || 'N/A'
                 }, null, 2)}</pre>`;
                 console.log('[DEBUG] debugPlayer 已更新');
             } else {
@@ -1882,8 +1915,8 @@ class MusicPlayerApp {
             if (playlistManager) {
                 debugPlaylist.innerHTML = `<pre style="margin: 0; color: #51cf66;">${JSON.stringify({
                     currentPlaylistId: this.currentPlaylistId,
-                    playlistLength: playlistManager.currentPlaylist?.length || 0,
-                    playlistCount: playlistManager.playlists?.length || 0
+                    playlistLength: playlistManager.currentPlaylist?.length || (playlistManager.getCurrent()?.length || 0),
+                    playlistCount: playlistManager.playlists?.length || (playlistManager.getAll?.()?.length || 0)
                 }, null, 2)}</pre>`;
                 console.log('[DEBUG] debugPlaylist 已更新');
             } else {
@@ -1899,7 +1932,7 @@ class MusicPlayerApp {
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 const value = localStorage.getItem(key);
-                storageInfo[key] = value.length > 100 ? value.substring(0, 100) + '...' : value;
+                storageInfo[key] = value && value.length > 200 ? value.substring(0, 200) + '...' : value;
             }
             debugStorage.innerHTML = `<pre style="margin: 0; color: #51cf66;">${JSON.stringify(storageInfo, null, 2)}</pre>`;
             console.log('[DEBUG] debugStorage 已更新');
@@ -1923,7 +1956,7 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => app.init());
 } else {
     await themeManager.init();
-    app.init();
+       app.init();
 }
 
 // 导出供调试使用
