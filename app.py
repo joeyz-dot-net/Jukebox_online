@@ -723,6 +723,16 @@ async def index():
     except Exception as e:
         return HTMLResponse(f"<h1>错误</h1><p>{str(e)}</p>", status_code=500)
 
+@app.get("/integration")
+async def integration_template():
+    """返回集成模板页面"""
+    try:
+        template_path = _get_resource_path("templates/integration-template.html")
+        with open(template_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    except Exception as e:
+        return HTMLResponse(f"<h1>错误</h1><p>{str(e)}</p>", status_code=500)
+
 # ============================================
 # API 路由：歌单管理
 # ============================================
