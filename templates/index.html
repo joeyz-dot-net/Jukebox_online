@@ -379,33 +379,34 @@
         }
     });
 	</script>		
-			</div>
+			
 		
 			<!-- ClubVoice 语音收听控件 -->
-		<div class="settings-section" id="clubvoiceSection">
-			<h3 class="section-title" data-i18n="settings.clubvoice">🎧 房间语音</h3>
+			<div class="settings-section" id="clubvoiceSection">
+				<h3 class="section-title" data-i18n="settings.clubvoice">🎧 房间语音</h3>
 
-			<!-- 连接控制行 -->
-			<div class="settings-item">
-				<label class="settings-label" data-i18n="settings.clubvoiceLabel">实时语音</label>
-				<div style="display:flex;align-items:center;gap:12px;flex:1;">
-					<button id="clubvoiceToggleBtn" type="button" class="settings-btn settings-btn-save" style="flex:0;padding:8px 12px;min-width:80px;white-space:nowrap;" disabled>连接中...</button>
-					<span id="clubvoiceStatus" class="toggle-text" style="flex:1;text-align:right;">正在连接...</span>
+				<!-- 连接控制行 -->
+				<div class="settings-item">
+					<label class="settings-label" data-i18n="settings.clubvoiceLabel">实时语音</label>
+					<div style="display:flex;align-items:center;gap:12px;">
+						<button id="clubvoiceToggleBtn" type="button" class="settings-btn settings-btn-save" style="flex:0;padding:8px 12px;min-width:80px;white-space:nowrap;" disabled>连接中...</button>
+						<span id="clubvoiceStatus" class="toggle-text">正在连接...</span>
+					</div>
 				</div>
-			</div>
 
-			<!-- 音量控制行 -->
-			<div class="settings-item">
-				<label class="settings-label" data-i18n="settings.clubvoiceVolume">语音音量</label>
-				<div class="settings-volume">
-					<input id="clubvoiceVolume" type="range" min="0" max="100" value="80" class="volume-slider" disabled />
-					<span id="clubvoiceVolumeValue" class="volume-value">80%</span>
+				<!-- 音量控制行 -->
+				<div class="settings-item">
+					<label class="settings-label" data-i18n="settings.clubvoiceVolume">语音音量</label>
+					<div class="settings-volume">
+						<input id="clubvoiceVolume" type="range" min="0" max="100" value="80" class="volume-slider" disabled />
+						<span id="clubvoiceVolumeValue" class="volume-value">80%</span>
+					</div>
 				</div>
-			</div>
 
-			<!-- 统计信息行 -->
-			<div class="settings-item" style="border-bottom:none;">
-				<span id="clubvoiceStats" class="toggle-text">0 packets</span>
+				<!-- 统计信息行 -->
+				<div class="settings-item" style="border-bottom:none;">
+					<span id="clubvoiceStats" class="toggle-text">0 packets</span>
+				</div>
 			</div>
 
 			<script src="//e.joeyz.net/sdk/clubvoice.js"></script>
@@ -522,7 +523,7 @@
 				}, 500);
 			})();
 			</script>
-
+</div>
 			<!-- 底部操作栏 -->
 			<div class="settings-footer">
 			</div>
