@@ -1,86 +1,309 @@
-# ClubMusic — Copilot Instructions (concise)
+# ClubMusic — AI Agent Guide
 
-Purpose: Help AI coding agents become productive quickly in this repository.
+**Full-stack web music player**: FastAPI backend + ES6 frontend + MPV IPC engine.  
+**Key distinction**: Bilingual (zh/en), user-isolation via localStorage, event-driven auto-play, Windows/PyInstaller-optimized.
 
-Last updated: 2025-12-30
+> **Last Updated**: 2026-01-02 | **Focus**: Backend-controlled auto-play, API parity patterns, singleton architecture
 
-Key architecture
-- Single-process server: Browser (ES6 static files) ↔ FastAPI app (`app.py`) ↔ in-process singletons (`PLAYER`, `PLAYLISTS_MANAGER`) ↔ MPV via IPC pipe (`\\.\\pipe\\mpv-pipe`).
-- Frontend <-> backend contract is thin and explicit: UI calls endpoints in `app.py`; the frontend wrapper is [static/js/api.js](static/js/api.js).
+## ⚠️ Critical Rules (Must Follow)
 
-Critical rules (must follow)
-- Keep API parity: any route/method/payload changed in [app.py](app.py) must be mirrored in [static/js/api.js](static/js/api.js). Mismatches are the most common silent bug.
-- Payload type conventions:
-  - Player-control endpoints use FormData and `await request.form()` (examples: `/play`, `/seek`, `/volume`, `/playlist_remove`, `/playlists/{id}/add_next`).
-  - CRUD/search endpoints use JSON and `await request.json()` (examples: `POST /playlists`, `/playlist_reorder`, `/search_song`, `/play_youtube_playlist`).
-- Use the global singletons from `app.py` (do NOT create new `MusicPlayer`/`Playlists`). Examples: `PLAYER = MusicPlayer.initialize(...)`, `PLAYLISTS_MANAGER = Playlists()`.
-- Always call `PLAYLISTS_MANAGER.save()` after mutating playlists.
-- Never delete or rename the `default` playlist — code assumes `DEFAULT_PLAYLIST_ID = "default"`.
+| Rule | Why & Example |
+|------|---------------|
+| **API Sync** | Backend [app.py](../app.py) + Frontend [static/js/api.js](../static/js/api.js) must match exactly. New route? Update BOTH. Field rename? Check both. Missing sync = silent failures. |
+| **FormData vs JSON** | **Player control** (`/play`, `/seek`, `/volume`, `/playlist_remove`): use `await request.form()`. **Data CRUD** (`/playlists`, `/playlist_reorder`, `/search_song`): use `await request.json()`. Wrong type = 400 errors. |
+| **Global Singletons** | `PLAYER`, `PLAYLISTS_MANAGER`, `RANK_MANAGER` initialized in [app.py L70-80](../app.py#L70-L80). Access directly—never create new instances. Duplication = state corruption. |
+| **Persistence** | Call `PLAYLISTS_MANAGER.save()` after ANY playlist mutation. Forgetting = data loss on restart. |
+| **User Isolation** | Playlist selection stored in browser `localStorage.selectedPlaylistId`, NOT backend. Each tab/browser independent. Backend only validates existence via `/playlists/{id}/switch`. |
+| **UTF-8 Windows** | Every `.py` entry point needs UTF-8 wrapper (see [models/__init__.py#L6-11](../models/__init__.py)). Missing = Chinese chars garbled in logs. |
+| **i18n Completeness** | Always add BOTH `zh` and `en` keys in [static/js/i18n.js](../static/js/i18n.js) when adding UI text. Missing lang = undefined strings. |
+| **Default Playlist** | Never delete or rename the `default` playlist (ID: `"default"`). Backend assumes it always exists for auto-play logic. |
 
-Project-specific patterns & gotchas
-- UTF-8 stdout wrapper: entry modules and `models/__init__.py` rewrap stdout for Windows — preserve this when adding CLI entrypoints.
-- PyInstaller resource helper: use `_get_resource_path()` in `app.py` to access bundled assets; handle `sys._MEIPASS`.
-- Playback model: backend controls auto-next and auto-fill.
-  - See `app.py:auto_fill_and_play_if_idle()` — it may append network (YouTube/stream) items into the default playlist and call `PLAYER.play()`.
-- Indexing and current track: `PLAYER.current_index` and `PLAYER.current_meta` are used across controllers — update `current_index` only via existing helpers or API-consistent code paths.
-- Thumbnail generation for YouTube: code extracts video id and uses `https://img.youtube.com/vi/{id}/default.jpg` when missing.
-
-Where to look first (high-value files)
-- Routing & singletons: [app.py](app.py)
-- MPV and playback logic: [models/player.py](models/player.py)
-- Playlist model & persistence: [models/playlists.py](models/playlists.py) and `playlists.json`
-- Song metadata & yt-dlp helpers: [models/song.py](models/song.py)
-- Frontend API wrapper: [static/js/api.js](static/js/api.js) (mirror changes here)
-- i18n strings: [static/js/i18n.js](static/js/i18n.js) — add both `zh` and `en` keys when adding UI text.
-- Runtime configs: [settings.ini](settings.ini)
-
-Developer workflows (quick)
-- Dev server (interactive audio device selection): `python main.py` or `python app.py` (uvicorn run present).
-- Build Windows exe: run `build_exe.bat` (workspace task "Build").
-- Tests: check `test/` for small utilities; run targeted tests manually as needed.
-
-PR checklist (include in PR description)
-- List exact route/method/payload changes and updated frontend calls in `static/js/api.js`.
-- If playlist/song dict fields changed, describe migration and update `playlists.json` if needed.
-- Note any changes to `PLAYER` or `PLAYLISTS_MANAGER` usage and why duplicating singletons was avoided.
-
-If anything is unclear, point me to the file or endpoint you want modified and I will produce a minimal, safe patch.
-
-Please review this and tell me which areas to expand (examples, specific endpoints, or developer scripts).
-# ClubMusic AI Agent Guide
-
-**Full-stack web music player**: FastAPI + ES6 modules + MPV IPC engine.  
-**Key distinction**: Bilingual (zh/en), user-isolation via localStorage, multi-singleton architecture, Windows/PyInstaller-optimized.
-
-> **Last Updated**: 2025-12-27 | **Focus**: Production-ready patterns, user-isolation architecture, ES6 module state management, backend event listening
-
-## ⚠️ Critical Rules (Must-Know)
-
-| Rule | Impact & Example |
-|------|---------|
-| **API Sync** | Backend [app.py](../app.py) + Frontend [static/js/api.js](../static/js/api.js) must match exactly. New route? Update BOTH. Field rename? Check both files. Missing sync = silent failures. |
-| **FormData vs JSON** | **Player control** (`/play`, `/seek`, `/volume`, `/playlist_remove`): `await request.form()`. **Data CRUD** (`/playlists`, `/playlist_reorder`, `/search_song`): `await request.json()`. Wrong type = "form required" errors. |
-| **POST vs PUT vs DELETE** | **Creating**: POST `/playlists`. **Updating**: PUT `/playlists/{id}`. **Removing**: DELETE `/playlists/{id}`. Follow REST semantics strictly for frontend routing. |
-| **Global Singletons** | `PLAYER`, `PLAYLISTS_MANAGER`, `RANK_MANAGER` initialized in [app.py#L70-80](../app.py). Access directly—never create new instances. State corruption if duplicated. |
-| **Config Reload** | [settings.ini](../settings.ini) parsed once at startup. Audio device change? Music dir? **Requires restart** `python main.py`. |
-| **UTF-8 Windows** | Every `.py` entry point needs UTF-8 wrapper (see [models/__init__.py#L6-11](../models/__init__.py)). Chinese chars garbled = missing wrapper. |
-| **i18n Sync** | Always add BOTH `zh` and `en` keys in [static/js/i18n.js](../static/js/i18n.js). Missing lang = undefined UI text. |
-| **Persistence** | Call `PLAYLISTS_MANAGER.save()` after ANY playlist modification. Forgetting it = data loss. |
-| **User Isolation** | Playlist selection in browser `localStorage` (`selectedPlaylistId`), NOT backend global state. Each browser/tab independent. |
-| **PyInstaller Paths** | External tools (`mpv.exe`, `yt-dlp.exe`) live next to exe. Bundled assets (`static/`, `templates/`) in temp `_MEIPASS` dir. |
-| **Singleton Pattern** | Use `MusicPlayer.initialize()` classmethod, not `__init__()`. Returns cached instance across app lifetime. |
-
-## Architecture
+## Architecture & Data Flow
 
 ```
-Browser ←poll /status→ FastAPI (app.py) ←→ Singletons ←→ MPV (\\.\pipe\mpv-pipe)
-   │                         │                              ↑
-   ├── ES6 modules ──────────┴── models/*.py               │
-   └── localStorage                  └─ Backend event listener (detects end-file)
-       (selectedPlaylistId,                 └─ Auto-deletes current song + plays next
-        theme, language)                       (NO frontend intervention needed)
-                                    └── playlists.json, playback_history.json
-````instructions
+Browser ←1s poll /status→ FastAPI (app.py) ←→ Singletons ←→ MPV (\\.\pipe\mpv-pipe)
+   │                           │                                ↑
+   ├── ES6 modules ────────────┴── models/*.py                 │
+   └── localStorage                    ├── player.py (event listener thread)
+       (selectedPlaylistId,            │   └─ Detects MPV "end-file" event
+        theme, language)                │      └─ Calls handle_playback_end()
+                                        │         └─ Deletes current song + plays next
+                                        │            (NO frontend involvement)
+                                        └── playlists.json, playback_history.json
+```
+
+**Key Insight**: Auto-next is 100% backend-driven via MPV event listener thread in [models/player.py#L569-636](../models/player.py#L569-L636). Frontend only reflects state via `/status` polling.
+
+## Critical Patterns & Gotchas
+
+### Auto-Play Mechanism (Backend-Controlled)
+**Location**: [models/player.py#L637-720](../models/player.py#L637-L720) — `handle_playback_end()`
+
+1. MPV event listener thread detects `end-file` event
+2. Backend automatically:
+   - Deletes current song from default playlist (by URL match)
+   - Plays next song in queue (index 0 after deletion)
+   - Updates `PLAYER.current_index` and `PLAYER.current_meta`
+3. Frontend reads state changes via `/status` polling (1s interval)
+
+**Rule**: Never implement auto-next logic in frontend. Backend owns this completely.
+
+### Song Insertion Pattern ("Add Next" feature)
+**Location**: [app.py#L851-917](../app.py#L851-L917) — `/playlist_add` endpoint
+
+```python
+# Calculate insert position: don't interrupt current song, add to "next" position
+current_index = PLAYER.current_index  # Maintained by /play endpoint
+insert_index = current_index + 1 if current_index >= 0 else 1
+playlist.songs.insert(insert_index, song_dict)
+```
+
+**Invariants**:
+- Position 0 = currently playing (never modify unless stopping playback)
+- `current_index` updated by `/play` endpoint, NOT by add/remove operations
+- After deletion: if `current_index >= len(songs)`, reset to `max(-1, len(songs) - 1)`
+
+### PyInstaller Resource Access
+**Pattern**: Use `_get_resource_path()` wrapper in [app.py#L38-51](../app.py#L38-L51)
+
+```python
+# Development: uses source directory
+# Packaged: uses sys._MEIPASS temp directory
+static_dir = _get_resource_path("static")
+app.mount("/static", StaticFiles(directory=static_dir))
+```
+
+**External tools** (`mpv.exe`, `yt-dlp.exe`) live next to exe, NOT in `_MEIPASS`.
+
+### Cover Art Retrieval
+**Endpoint**: `/cover/{file_path:path}` in [app.py#L258-310](../app.py#L258-L310)
+
+Priority order:
+1. Embedded cover (extracted via `mutagen`, returned as bytes)
+2. Directory cover files (`cover.jpg`, `folder.jpg`, `albumart.jpg`)
+3. Placeholder (`static/images/preview.png`)
+
+**Note**: Never saves extracted covers to disk—streams bytes directly to avoid temp file clutter.
+
+### YouTube Thumbnail Generation
+**Pattern**: Auto-generate from video ID when missing
+
+```python
+if song_type == "youtube" and not thumbnail_url:
+    # Extract video ID from URL
+    video_id = extract_video_id(url)  # Regex match
+    thumbnail_url = f"https://img.youtube.com/vi/{video_id}/default.jpg"
+```
+
+Applies to: `/playlist_add`, `/playlists/{id}/add_next`, YouTube search results.
+
+### Frontend State Management
+**Location**: [static/js/main.js#L23-42](../static/js/main.js#L23-L42)
+
+```javascript
+class MusicPlayerApp {
+    constructor() {
+        // User-isolated: each browser/tab maintains own playlist selection
+        this.currentPlaylistId = localStorage.getItem('selectedPlaylistId') || 'default';
+        
+        // State tracking: only log when values change (reduce log spam)
+        this.lastLoopMode = null;
+        this.lastVolume = null;
+        this.lastPlaybackStatus = null;
+    }
+}
+```
+
+**Rule**: All user preferences (theme, language, volume) stored in `localStorage`, NOT backend.
+
+## Developer Workflows
+
+### Development Server
+```powershell
+# Interactive audio device selection + starts FastAPI
+python main.py
+
+# Direct start (uses device from settings.ini)
+python app.py
+```
+
+**Port**: 80 (requires admin on Windows). Change in [settings.ini](../settings.ini) if needed.
+
+### Build Windows Executable
+```powershell
+# Via VS Code task
+# Ctrl+Shift+P → "Run Task" → "Build"
+
+# Or manual
+.\build_exe.bat
+```
+
+**Output**: `dist/app.exe` (single-file bundle, ~150MB).  
+**Spec file**: [app.spec](../app.spec) — controls PyInstaller bundling.
+
+### Configuration
+**File**: [settings.ini](../settings.ini)
+
+Key settings:
+- `music_dir`: Root for local music library
+- `mpv_cmd`: Full command with IPC pipe path (`\\.\pipe\mpv-pipe`)
+- `allowed_extensions`: `.mp3,.wav,.flac,.aac,.m4a`
+- `local_volume`: Default volume (0-100)
+- `playback_history_max`: Max history entries before trimming
+
+**Reload**: Requires app restart. No hot-reload.
+
+### Debugging
+**Console**: [static/js/debug.js](../static/js/debug.js) — press `` ` `` (backtick) to toggle debug panel.  
+**Logs**: stdout (dev) or use Windows Event Viewer (packaged exe).
+
+## High-Value Files (Read These First)
+
+| File | Purpose |
+|------|---------|
+| [app.py](../app.py) | FastAPI routing, singletons, auto-fill thread, all endpoints |
+| [models/player.py](../models/player.py) | MPV lifecycle, event listener, playback history, auto-next logic |
+| [models/playlists.py](../models/playlists.py) | Multi-playlist model, persistence (`playlists.json`) |
+| [models/song.py](../models/song.py) | Song classes (LocalSong, StreamSong), yt-dlp wrappers |
+| [static/js/api.js](../static/js/api.js) | Frontend API wrapper—**must mirror app.py** |
+| [static/js/main.js](../static/js/main.js) | App initialization, state management, polling loop |
+| [static/js/i18n.js](../static/js/i18n.js) | Translations (zh/en)—add both languages for new strings |
+
+## Common Mistakes & How to Avoid
+
+| Mistake | How to Detect | Fix |
+|---------|---------------|-----|
+| API mismatch | 400 errors, missing fields in response | Compare [app.py](../app.py) route with [static/js/api.js](../static/js/api.js) method |
+| Forgot `save()` | Playlist changes lost on restart | Add `PLAYLISTS_MANAGER.save()` after mutation |
+| Wrong payload type | "form required" or empty request body | Check endpoint in [app.py](../app.py): FormData vs JSON |
+| Duplicated singleton | State out of sync, missing songs | Always use `app.PLAYER`, `app.PLAYLISTS_MANAGER` |
+| Frontend auto-next | Double-play, skipped songs | Remove frontend logic; backend owns auto-next |
+| Missing i18n key | "undefined" in UI | Add to both `zh` and `en` in [static/js/i18n.js](../static/js/i18n.js) |
+| PyInstaller path issue | FileNotFoundError in packaged exe | Use `_get_resource_path()` for bundled assets |
+
+## API Design Conventions
+
+### FormData Endpoints (Player Control)
+```python
+@app.post("/play")
+async def play(request: Request):
+    form = await request.form()
+    url = form.get("url")
+    # ...
+```
+
+**Frontend**:
+```javascript
+async play(url, title, type = 'local') {
+    const formData = new FormData();
+    formData.append('url', url);
+    formData.append('title', title);
+    formData.append('type', type);
+    return this.postForm('/play', formData);
+}
+```
+
+### JSON Endpoints (Data CRUD)
+```python
+@app.post("/playlist_add")
+async def add_to_playlist(request: Request):
+    data = await request.json()
+    playlist_id = data.get("playlist_id")
+    # ...
+```
+
+**Frontend**:
+```javascript
+async addToPlaylist(data) {
+    return this.post('/playlist_add', data);
+}
+```
+
+## Code Examples
+
+### Adding a New Endpoint
+
+**1. Backend** ([app.py](../app.py)):
+```python
+@app.post("/my_endpoint")
+async def my_endpoint(request: Request):
+    data = await request.json()  # or request.form()
+    # ... logic ...
+    return {"status": "OK", "data": result}
+```
+
+**2. Frontend** ([static/js/api.js](../static/js/api.js)):
+```javascript
+async myEndpoint(data) {
+    return this.post('/my_endpoint', data);
+}
+```
+
+**3. Usage** (in UI module):
+```javascript
+import { api } from './api.js';
+
+const result = await api.myEndpoint({ key: value });
+if (result.status === "OK") {
+    // handle success
+}
+```
+
+### Modifying Playlist
+```python
+playlist = PLAYLISTS_MANAGER.get_playlist(playlist_id)
+playlist.songs.append(song_dict)
+playlist.updated_at = time.time()
+PLAYLISTS_MANAGER.save()  # ← CRITICAL: don't forget
+```
+
+### Adding i18n String
+**File**: [static/js/i18n.js](../static/js/i18n.js)
+
+```javascript
+const translations = {
+    zh: {
+        'my.new.key': '我的新文本',
+        // ...
+    },
+    en: {
+        'my.new.key': 'My New Text',
+        // ...
+    }
+};
+```
+
+**Usage**:
+```javascript
+import { i18n } from './i18n.js';
+const text = i18n.t('my.new.key');
+```
+
+## Testing & Verification
+
+### Quick Checks After Changes
+1. **API change**: Test both endpoints (curl/Postman) AND frontend UI
+2. **Playlist mutation**: Restart app → verify `playlists.json` persisted
+3. **Auto-next**: Play song to end → verify next song plays automatically
+4. **Multi-language**: Switch language in settings → all text updates
+5. **PyInstaller**: Build exe → run → verify paths resolve correctly
+
+### Manual Test Scenarios
+- **User isolation**: Open two browser tabs → select different playlists → verify independent
+- **YouTube search**: Search "test" → add to playlist → verify thumbnail shows
+- **Cover art**: Play local MP3 → verify cover displays (embedded or folder)
+- **Loop modes**: Toggle loop (0→1→2→0) → verify behavior matches mode
+
+## Questions & Feedback
+
+If any section is unclear or you need more detail on:
+- Specific endpoint patterns (e.g., YouTube playlist extraction)
+- Frontend module interactions (e.g., player ↔ playlist manager)
+- MPV IPC command examples
+- Error handling conventions
+- Logging patterns
+
+...please ask! I'll expand those sections with concrete examples from the codebase.`instructions
 # ClubMusic AI Agent Guide
 
 Concise, actionable instructions for AI coding agents working on ClubMusic (FastAPI backend + ES6 frontend + MPV IPC).
