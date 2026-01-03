@@ -1019,51 +1019,83 @@ async def prev_track():
 @app.get("/status")
 async def get_status():
     """获取播放器状态"""
-    playlist = PLAYLISTS_MANAGER.get_playlist(CURRENT_PLAYLIST_ID)
-    
-    # 获取 MPV 状态
-    mpv_state = {
-        "paused": mpv_get("pause"),
-        "time_pos": mpv_get("time-pos"),
-        "duration": mpv_get("duration"),
-        "volume": mpv_get("volume")
-    }
-    
-    # 为本地歌曲添加封面 URL（仅当封面存在时）
-    current_meta = dict(PLAYER.current_meta) if PLAYER.current_meta else {}
-    if current_meta.get("type") == "local" and not current_meta.get("thumbnail_url"):
-        url = current_meta.get("url", "")
-        if url:
-            # 先检查封面是否存在
-            if os.path.isabs(url):
-                abs_path = url
-            else:
-                abs_path = os.path.join(PLAYER.music_dir, url)
-            
-            # 检查内嵌封面或目录封面
-            has_cover = False
-            if os.path.isfile(abs_path):
-                # 检查目录封面
-                if _get_cover_from_directory(abs_path):
-                    has_cover = True
+    try:
+        playlist = PLAYLISTS_MANAGER.get_playlist(CURRENT_PLAYLIST_ID)
+        
+        # 获取 MPV 状态（安全地处理 MPV 不可用的情况）
+        mpv_state = {
+            "paused": True,
+            "time_pos": 0,
+            "duration": 0,
+            "volume": 50
+        }
+        
+        try:
+            mpv_state = {
+                "paused": mpv_get("pause"),
+                "time_pos": mpv_get("time-pos"),
+                "duration": mpv_get("duration"),
+                "volume": mpv_get("volume")
+            }
+        except Exception as e:
+            # MPV 不可用时返回默认值
+            logger.debug(f"获取 MPV 状态失败 (MPV 可能未运行): {e}")
+        
+        # 为本地歌曲添加封面 URL（仅当封面存在时）
+        current_meta = dict(PLAYER.current_meta) if PLAYER.current_meta else {}
+        if current_meta.get("type") == "local" and not current_meta.get("thumbnail_url"):
+            url = current_meta.get("url", "")
+            if url:
+                # 先检查封面是否存在
+                if os.path.isabs(url):
+                    abs_path = url
                 else:
-                    # 快速检查是否有内嵌封面（检查FFmpeg能否提取）
-                    cover_bytes = _extract_embedded_cover_bytes(abs_path)
-                    if cover_bytes:
+                    abs_path = os.path.join(PLAYER.music_dir, url)
+                
+                # 检查内嵌封面或目录封面
+                has_cover = False
+                if os.path.isfile(abs_path):
+                    # 检查目录封面
+                    if _get_cover_from_directory(abs_path):
                         has_cover = True
-            
-            if has_cover:
-                from urllib.parse import quote
-                current_meta["thumbnail_url"] = f"/cover/{quote(url, safe='')}"
-    
-    return {
-        "status": "OK",
-        "current_meta": current_meta,
-        "current_playlist_id": CURRENT_PLAYLIST_ID,
-        "current_playlist_name": playlist.name if playlist else "--",
-        "loop_mode": PLAYER.loop_mode,
-        "mpv_state": mpv_state
-    }
+                    else:
+                        # 快速检查是否有内嵌封面（检查FFmpeg能否提取）
+                        cover_bytes = _extract_embedded_cover_bytes(abs_path)
+                        if cover_bytes:
+                            has_cover = True
+                
+                if has_cover:
+                    from urllib.parse import quote
+                    current_meta["thumbnail_url"] = f"/cover/{quote(url, safe='')}"
+        
+        return {
+            "status": "OK",
+            "current_meta": current_meta,
+            "current_playlist_id": CURRENT_PLAYLIST_ID,
+            "current_playlist_name": playlist.name if playlist else "--",
+            "loop_mode": PLAYER.loop_mode,
+            "mpv_state": mpv_state
+        }
+    except Exception as e:
+        # 捕获所有异常，防止 500 错误
+        logger.error(f"获取播放器状态失败: {e}")
+        return JSONResponse(
+            {
+                "status": "ERROR",
+                "error": "获取播放器状态失败",
+                "current_meta": {},
+                "current_playlist_id": DEFAULT_PLAYLIST_ID,
+                "current_playlist_name": "--",
+                "loop_mode": 0,
+                "mpv_state": {
+                    "paused": True,
+                    "time_pos": 0,
+                    "duration": 0,
+                    "volume": 50
+                }
+            },
+            status_code=200  # 返回 200 而不是 500，防止前端轮询失败
+        )
 
 @app.post("/pause")
 async def pause():

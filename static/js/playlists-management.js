@@ -38,12 +38,14 @@ export class PlaylistsManagement {
 
         // 歌单模态框关闭按钮
         const playlistsBackBtn = document.getElementById('playlistsBackBtn');
-        if (playlistsBackBtn && this.modal) {
+        if (playlistsBackBtn) {
             playlistsBackBtn.addEventListener('click', () => {
                 this.hide();
             });
-            
-            // 点击背景关闭
+        }
+        
+        // 点击背景关闭模态框
+        if (this.modal) {
             this.modal.addEventListener('click', (e) => {
                 if (e.target === this.modal) {
                     this.hide();
@@ -55,7 +57,7 @@ export class PlaylistsManagement {
     // 显示歌单管理模态框
     show() {
         if (this.modal) {
-            this.modal.style.display = 'block';
+            this.modal.style.display = 'flex';
             setTimeout(() => {
                 this.modal.classList.add('modal-visible');
             }, 10);
@@ -132,6 +134,9 @@ export class PlaylistsManagement {
                         ${playlist.id === 'default' ? '<span class="default-badge">默认</span>' : ''}
                     </div>
                     <div class="playlist-count">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="opacity: 0.6;">
+                            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                        </svg>
                         ${playlist.songs?.length || 0} 首歌曲
                     </div>
                 </div>

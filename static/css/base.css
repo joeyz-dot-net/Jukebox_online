@@ -773,71 +773,121 @@ button:active { transform: scale(0.98); }
 }
 #playerProgressFill { height: 100%; width: 0%; transition: width 0.1s; }
 
-/* 歌单管理模态框 */
+/* 歌单管理模态框 - 采用搜索操作菜单相同的设计风格 */
 .playlists-modal {
     display: flex;
     align-items: center;
     justify-content: center;
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    padding: 20px;
     background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
     z-index: 1001;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+}
+
+.playlists-modal.modal-visible {
+    opacity: 1;
+    pointer-events: auto;
 }
 
 .playlists-modal-content {
     position: relative;
-    margin: 0 auto;
-    max-width: 500px;
-    max-height: 80vh;
+    max-width: 420px;
+    max-height: 70vh;
     width: 90vw;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
     border-radius: 16px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    /* 不要设置 top/bottom/left/transform */
+    background: rgba(42, 42, 42, 0.85);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transform: scale(0.9);
+    transition: transform 0.3s;
+}
+
+.playlists-modal.modal-visible .playlists-modal-content {
+    transform: scale(1);
 }
 
 .playlists-modal-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
-    border-bottom: 1px solid var(--border-color, #333);
-    background: var(--bg-primary, #121212);
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: transparent;
     flex-shrink: 0;
 }
 
 .playlists-modal-header h2 {
     flex: 1;
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 600;
     margin: 0;
-    color: var(--text-primary, #fff);
+    color: #fff;
 }
 
-.playlists-back-btn,
+.playlists-back-btn {
+    display: none; /* 隐藏返回按钮 */
+}
+
 .playlists-add-btn {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #fff;
+    transition: all 0.2s ease;
+    margin-left: 12px;
+}
+
+.playlists-add-btn:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: scale(1.05);
+}
+
+.playlists-add-btn:active {
+    transform: scale(0.95);
+}
+
+/* 添加关闭按钮样式（如果需要） */
+.playlists-close-btn {
+    width: 32px;
+    height: 32px;
     background: transparent;
     border: none;
     border-radius: 50%;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #999;
+    font-size: 24px;
+    transition: all 0.2s ease;
+}
+
+.playlists-close-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
 }
 
 .playlists-modal-body {
     flex: 1;
     overflow-y: auto;
-    padding: 16px;
-    padding-bottom: 80px;
+    padding: 16px 24px 24px;
+    background: transparent;
 }
 
 /* ==========================================
@@ -993,23 +1043,40 @@ button:active { transform: scale(0.98); }
 .playlist-item {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 14px 16px;
-    border: 1px solid;
+    gap: 16px;
+    padding: 16px 20px;
+    border: none;
     border-radius: 12px;
     margin-bottom: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    cursor: pointer;
     transition: all 0.2s ease;
 }
 
+.playlist-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateY(-2px);
+}
+
+.playlist-item:active {
+    background: rgba(255, 255, 255, 0.18);
+    transform: translateY(0);
+}
+
 .playlist-icon {
-    width: 52px;
-    height: 52px;
-    border-radius: 14px;
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
+    font-size: 24px;
     flex-shrink: 0;
+    transition: transform 0.25s ease;
+}
+
+.playlist-item:hover .playlist-icon {
+    transform: scale(1.05);
 }
 
 .playlist-info {
@@ -1017,47 +1084,65 @@ button:active { transform: scale(0.98); }
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
 }
 
 .playlist-name {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 16px;
+    gap: 10px;
+    font-size: 17px;
     font-weight: 600;
+    letter-spacing: -0.3px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    line-height: 1.4;
 }
 
 .default-badge {
-    padding: 3px 8px;
+    padding: 4px 10px;
     border-radius: 999px;
     font-size: 12px;
+    font-weight: 500;
     border: 1px solid;
+    letter-spacing: 0.3px;
 }
 
 .playlist-count {
-    font-size: 13px;
+    font-size: 14px;
+    opacity: 0.7;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
 .playlist-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
 }
 
 .playlist-action-btn {
-    width: 38px;
-    height: 38px;
+    width: 40px;
+    height: 40px;
     border-radius: 12px;
     border: 1px solid;
+    background: rgba(255, 255, 255, 0.02);
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
+}
+
+.playlist-action-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: scale(1.08);
+}
+
+.playlist-action-btn:active {
+    transform: scale(0.95);
 }
 
 .playlists-empty {
