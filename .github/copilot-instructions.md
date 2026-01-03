@@ -121,7 +121,7 @@ class MusicPlayerApp {
 ### Development Server
 ```powershell
 # Interactive audio device selection + starts FastAPI
-python main.py
+python run.py
 
 # Direct start (uses device from settings.ini)
 python app.py
@@ -130,7 +130,7 @@ python app.py
 **Port**: 80 (requires admin on Windows). Change in [settings.ini](../settings.ini) if needed.
 
 **What happens**:
-- `main.py`: Enumerates audio devices → updates `settings.ini` → launches `app.py`
+- `run.py`: Enumerates audio devices → updates `settings.ini` → launches `app.py`
 - `app.py`: Initializes singletons → starts MPV event listener → runs Uvicorn on port 80
 - Frontend: Polls `/status` every 1s for playback state updates
 
@@ -370,7 +370,7 @@ Last updated: 2025-12-29
 
 ## Project-specific patterns & gotchas
 - UTF-8 wrappers: entry scripts set stdout encoding for Windows (see `models/__init__.py`). Keep that pattern when adding CLI entrypoints.
-- MPV startup: `main.py` interactively selects audio device and updates `mpv_cmd`. During runtime the environment var `MPV_AUDIO_DEVICE` may be used.
+- MPV startup: `run.py` interactively selects audio device and updates `mpv_cmd`. During runtime the environment var `MPV_AUDIO_DEVICE` may be used.
 - yt-dlp integration: `models/song.py` and `models/player.py` call `yt-dlp` (prefer `bin/yt-dlp.exe` when present).
 - Event-driven auto-fill: `app.py:auto_fill_and_play_if_idle()` can auto-fill default playlist after idle; review before changing default-queue behavior.
 
@@ -404,7 +404,7 @@ Last updated: 2025-12-29
   Build & run (developer commands)
   - Dev server (interactive audio-device selection):
   ```powershell
-  python main.py
+  python run.py
   ```
   - Run directly (app exports uvicorn in __main__):
   ```powershell

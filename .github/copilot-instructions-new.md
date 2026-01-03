@@ -1,10 +1,10 @@
 # ClubMusic — AI Agent Guide
 
 **Full-stack web music player**: FastAPI backend + ES6 frontend + MPV IPC engine.  
-**Key distinctions**: Bilingual (zh/en), user-isolation via localStorage, event-driven auto-play, Windows/PyInstaller-optimized, PWA-ready.
+**Key distinctions**: Bilingual (zh/en), user-isolation via localStorage, event-driven auto-play, Windows/PyInstaller-optimized.
 
 > **Last Updated**: 2026-01-02 | **Version**: 2.0  
-> **Focus**: Backend-controlled auto-play, API parity patterns, singleton architecture, PWA capabilities
+> **Focus**: Backend-controlled auto-play, API parity patterns, singleton architecture
 
 ---
 
@@ -130,7 +130,7 @@ class MusicPlayerApp {
 ### Development Server
 ```powershell
 # Interactive audio device selection + starts FastAPI
-python main.py
+python run.py
 
 # Direct start (uses device from settings.ini)
 python app.py
@@ -312,22 +312,8 @@ const text = i18n.t('my.new.key');
 - **YouTube search**: Search "test" → add to playlist → verify thumbnail shows
 - **Cover art**: Play local MP3 → verify cover displays (embedded or folder)
 - **Loop modes**: Toggle loop (0→1→2→0) → verify behavior matches mode
-- **PWA**: Install as app → verify offline cache, icons, manifest
 
 ---
-
-## PWA Features
-
-ClubMusic supports Progressive Web App installation:
-
-- **Manifest**: [static/manifest.json](../static/manifest.json) — defines app name, icons, theme
-- **Service Worker**: [static/sw.js](../static/sw.js) — handles offline caching, install prompts
-- **Icons**: Multiple sizes in `static/images/icon-*.png` (72px to 512px)
-
-**Testing PWA**:
-1. Open `/pwa-test` in browser
-2. Check manifest loads correctly
-3. Verify Service Worker registers
 4. Test "Add to Home Screen" prompt
 
 ---
